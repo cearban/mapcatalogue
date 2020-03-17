@@ -4,7 +4,7 @@ from owslib.csw import CatalogueServiceWeb
 from owslib.fes import PropertyIsEqualTo, PropertyIsLike, BBox
 from owslib.wms import WebMapService
 from pyproj import Transformer
-
+import requests
 
 def bbox_to_bng(src_crs, bbox, sub_bbox=False, buffer=100):
     """
@@ -145,32 +145,41 @@ def main():
     my_query = PropertyIsEqualTo('csw:AnyText', 'Greenspace')
     wms_catalog_fn = catalog_web_map_services(csw, my_query)
 
-    wms_url = None
-    wms_lyr_name = None
+    # wms_url = None
+    # wms_lyr_name = None
 
     # 1. build up the catalog of WMSs
     if os.path.exists(wms_catalog_fn):
         with open(wms_catalog_fn, 'r') as inpf:
             my_reader = csv.DictReader(inpf)
             for r in my_reader:
-                if (r["title"]).startswith('St Albans'):
-                    wms_title = r["title"]
-                    wms_url = r['url']
-                    wms = WebMapService(wms_url)
+                wms_title = r["title"]
+                wms_url = r['url']
+
+                try:
+                    # default timeout is 30
+                    wms = WebMapService(wms_url, timeout=5)
+                    print('OK', wms_url)
+                    print('wms has these layers:')
                     for l in wms.contents:
-                        if l == 'Polling_Districts':
-                            wms_lyr_name = l
+                        print(l)
+                except requests.exceptions.ReadTimeout as ex:
+                    print('TIMED-OUT', wms_url)
+                except requests.exceptions.ConnectionError as ex:
+                    print('ConnectionError', wms_url)
+                except AttributeError:
+                    print('AttributeError', wms_url)
 
     # 2. interrogate a WMS in the catalogue
-    if (wms_url is not None) and (wms_lyr_name is not None):
-        print(wms_title)
-        print(wms_url)
-        print(wms.version)
-        print(wms.identification.title)
-        print(wms.identification.abstract)
-        print(wms_lyr_name)
-        print("YO")
-        interrogate_wms_layer(wms_url, wms_lyr_name)
+    # if (wms_url is not None) and (wms_lyr_name is not None):
+    #     print(wms_title)
+    #     print(wms_url)
+    #     print(wms.version)
+    #     print(wms.identification.title)
+    #     print(wms.identification.abstract)
+    #     print(wms_lyr_name)
+    #     print("YO")
+    #     interrogate_wms_layer(wms_url, wms_lyr_name)
 
 
 if __name__ == "__main__":
