@@ -1,0 +1,3 @@
+https://github.com/geopython/pycsw/wiki/Live-Deployments
+https://inspire-geoportal.ec.europa.eu/proxybrowser/
+https://ckan.publishing.service.gov.uk/csw?request=GetCapabilities&service=CSW&version=2.0.2
