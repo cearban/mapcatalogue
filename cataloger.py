@@ -169,6 +169,7 @@ def main():
         print(wms.identification.title)
         print(wms.identification.abstract)
         print(wms_lyr_name)
+        print("YO")
         interrogate_wms_layer(wms_url, wms_lyr_name)
 
 
