@@ -7,23 +7,25 @@ def get_ogc_type(url):
     ogc_type = None
 
     if 'wms' in url.lower():
-        if 'getcapabilities' in url.lower():
+        if 'request=getcapabilities' in url.lower():
             ogc_type = 'WMS:GetCapabilties'
-        if 'getmap' in url.lower():
+        if 'request=getmap' in url.lower():
             ogc_type = 'WMS:GetMap'
     elif 'wcs' in url.lower():
-        if 'describecoverage' in url.lower():
+        if 'request=describecoverage' in url.lower():
             ogc_type = 'WCS:DescribeCoverage'
-        if 'getcoverage' in url.lower():
+        if 'request=getcoverage' in url.lower():
             ogc_type = 'WCS:GetCoverage'
     elif 'wfs' in url.lower():
-        if 'getcapabilities' in url.lower():
+        if 'request=getcapabilities' in url.lower():
             ogc_type = 'WFS:GetCapabilities'
-        if 'getfeature' in url.lower():
+        if 'request=getfeature' in url.lower():
             ogc_type = 'WFS:GetFeature'
 
     return ogc_type
 
+# TODO use threading rather than multiprocessing
+#  https://blog.floydhub.com/multiprocessing-vs-threading-in-python-what-every-data-scientist-needs-to-know/
 
 # TODO grab keywords(subjects); spatial and temporal (not always avail). So able to group
 #  records by theme, time and spatial extent
