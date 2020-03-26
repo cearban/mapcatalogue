@@ -10,6 +10,7 @@ import owslib
 import logging
 import glob
 from PIL import Image
+import xml
 
 
 # logging.basicConfig(
@@ -151,18 +152,6 @@ def interrogate_wms_layer(wms_url, wms_lyr_name):
 #             my_writer.writerow([i[0], i[1]])
 
 
-def interrogate_wms_layers(fn):
-    sample_l = []
-    if os.path.exists(fn):
-        with open(fn, 'r') as inpf:
-            my_reader = csv.DictReader(inpf)
-            for r in my_reader:
-                wms_url = r['wms_url']
-                lyr_name = r['lyr_name']
-                if wms_url not in sample_l:
-                    sample_l.append(wms_url)
-                    interrogate_wms_layer(wms_url, lyr_name)
-
 
 def check_wms_map_image(fn):
     status = None
@@ -178,3 +167,66 @@ def check_wms_map_image(fn):
             status = "seems to be a nosize img"
 
     return status
+
+
+def fetch_wms_layers():
+    fn = "/home/james/Desktop/Work/ogc_endpoints.csv"
+    c = 1
+    out_records = []
+    if os.path.exists(fn):
+        with open(fn, 'r') as inpf:
+            my_reader = csv.DictReader(inpf)
+            for r in my_reader:
+                if r['ogc_url_type'] != 'NotFound':
+                    record_id = r['record_id']
+                    record_title = r['record_title']
+                    ogc_url_type = r['ogc_url_type']
+                    ogc_url = r['ogc_url']
+                    if 'WMS' in ogc_url_type:
+                        if ogc_url_type == 'WMS:GetCapabilties':
+                            if c < 50:
+                                print(record_id)
+                                print(record_title)
+                                print(c, ogc_url_type, ogc_url)
+                                wms_layers = []
+                                try:
+                                    wms = WebMapService(ogc_url, timeout=5)
+                                    for wms_lyr_name in wms.contents:
+                                        wms_layers.append(wms_lyr_name)
+                                except requests.RequestException as ex:
+                                    pass
+                                    #print(ex)
+                                except AttributeError as ex:
+                                    pass
+                                    #print(ex)
+                                except xml.etree.ElementTree.ParseError as ex:
+                                    pass
+                                    #print(ex)
+                                if len(wms_layers) > 0:
+                                    for wms_layer in wms_layers:
+                                        print('\t', wms_layer)
+                                        out_records.append([record_id, record_title, ogc_url, wms_layer])
+                                else:
+                                    print("No WMS layers listed OR could not retrieve them from WMS")
+                            c += 1
+
+    if len(out_records) > 0:
+        with open("/home/james/Desktop/Work/wms_layers_by_record_title.csv", "w") as outpf:
+            my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
+            my_writer.writerow(['record_id', 'record_title', 'ogc_url', 'wms_layer'])
+            for i in out_records:
+                my_writer.writerow([i[0], i[1], i[2], i[3]])
+
+
+def look_for_title_in_wms_layers():
+    fn = "/home/james/Desktop/Work/wms_layers_by_record_title.csv"
+    if os.path.exists(fn):
+        with open(fn, "r") as inpf:
+            my_reader = csv.DictReader(inpf)
+            for r in my_reader:
+                print(r['record_title'], ' --> ', r['wms_layer'])
+
+
+if __name__ == "__main__":
+    look_for_title_in_wms_layers()
+    #fetch_wms_layers()
