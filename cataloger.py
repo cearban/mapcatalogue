@@ -92,10 +92,8 @@ def search_csw_for_ogc_endpoints(csw_url, search_term=None, limit_count=0):
     return out_records
 
 
-def main():
-    u = 'https://ckan.publishing.service.gov.uk/csw?request=GetCapabilities&service=CSW&version=2.0.2'
-    #ogc_endpoints = search_csw_for_ogc_endpoints(csw_url=u, search_term='Greenspace', limit_count=1000)
-    ogc_endpoints = search_csw_for_ogc_endpoints(csw_url=u, limit_count=1000)
+def build_catalog(csw_url, search_term=None, limit_count=0):
+    ogc_endpoints = search_csw_for_ogc_endpoints(csw_url, search_term=search_term, limit_count=limit_count)
 
     with open('/home/james/Desktop/ogc_endpoints.csv', 'w') as outpf:
         my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
@@ -105,4 +103,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # build_catalog(
+    #     csw_url='https://ckan.publishing.service.gov.uk/csw?request=GetCapabilities&service=CSW&version=2.0.2',
+    #     search_term='Greenspace',
+    #     limit_count=1000
+    # )
+
+    build_catalog(
+       csw_url='https://ckan.publishing.service.gov.uk/csw?request=GetCapabilities&service=CSW&version=2.0.2',
+       limit_count=1000
+    )
