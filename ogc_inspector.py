@@ -11,6 +11,8 @@ import logging
 import glob
 from PIL import Image
 import xml
+import pprint
+import Levenshtein as lvn
 
 
 # logging.basicConfig(
@@ -219,12 +221,63 @@ def fetch_wms_layers():
 
 
 def look_for_title_in_wms_layers():
+
+    d = {}
+
     fn = "/home/james/Desktop/Work/wms_layers_by_record_title.csv"
     if os.path.exists(fn):
         with open(fn, "r") as inpf:
             my_reader = csv.DictReader(inpf)
             for r in my_reader:
-                print(r['record_title'], ' --> ', r['wms_layer'])
+                record_id = r['record_id']
+                record_title = r['record_title']
+                ogc_url = r['ogc_url']
+                wms_layer = r['wms_layer']
+                if record_id in d:
+                    d[record_id]['wms_layers'].append([ogc_url, wms_layer])
+                else:
+                    d[record_id] = {
+                        'record_title': record_title,
+                        'wms_layers': [[ogc_url, wms_layer]],
+                        'wms_layer_for_record': None,
+                        'match_dist': None,
+                        'only_1_choice': False
+                    }
+
+    for record_id in d:
+        record_title = d[record_id]['record_title']
+        num_wms_layers = len(d[record_id]['wms_layers'])
+        if num_wms_layers == 1:
+            d[record_id]['only_1_choice'] = True
+            d[record_id]['wms_layer_for_record'] = d[record_id]['wms_layers'][0][1]
+            d[record_id]['match_dist'] = lvn.distance(record_title.lower(), (d[record_id]['wms_layers'][0][1]).lower())
+        else:
+            # otherwise things are more complicated
+            min_l_dist = 1000000
+            matched_layer = None
+            for wms_layer in d[record_id]['wms_layers']:
+                record_title_norm = record_title.lower()
+                wms_layer_norm = (wms_layer[1]).lower()
+
+                l_dist = lvn.distance(record_title_norm, wms_layer_norm)
+                if l_dist < min_l_dist:
+                    min_l_dist = l_dist
+                    matched_layer = wms_layer_norm
+
+            if matched_layer is not None:
+                d[record_id]['wms_layer_for_record'] = matched_layer
+                d[record_id]['match_dist'] = min_l_dist
+
+    fn = "/home/james/Desktop/Work/matched_wms_layer_by_record_title.csv"
+    with open(fn, 'w') as outpf:
+        my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
+        my_writer.writerow((['record_title', 'wms_layer_for_record', 'only_1_choice', 'match_dist']))
+        for record_id in d:
+            record_title = d[record_id]['record_title']
+            wms_layer_for_record = d[record_id]['wms_layer_for_record']
+            match_dist = d[record_id]['match_dist']
+            only_1_choice = d[record_id]['only_1_choice']
+            my_writer.writerow([record_title, wms_layer_for_record, only_1_choice, match_dist])
 
 
 if __name__ == "__main__":
