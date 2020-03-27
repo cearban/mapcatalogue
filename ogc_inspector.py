@@ -244,6 +244,9 @@ def look_for_title_in_wms_layers():
                         'only_1_choice': False
                     }
 
+    # TODO - use Levenshtein distance via https://rawgit.com/ztane/python-Levenshtein/master/docs/Levenshtein.html
+    #  we just use dist which is absolute Levenshtein distance between 2 string but maybe the other functions are
+    #   more appropriate?
     for record_id in d:
         record_title = d[record_id]['record_title']
         num_wms_layers = len(d[record_id]['wms_layers'])
