@@ -1,5 +1,6 @@
 import csv
 import xml
+import owslib
 from owslib.csw import CatalogueServiceWeb
 from owslib.fes import PropertyIsEqualTo
 from owslib.wms import WebMapService
@@ -20,13 +21,14 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
     only_1_choice = False
     wms_layer_for_record = None
     match_dist = None
-    wms_timed_out = False
-    error_during_wms_parsing = False
-
+    wms_error = False
     num_layers = 0
 
     try:
         wms = WebMapService(ogc_url, timeout=wms_timeout)
+    except (owslib.util.ServiceException, requests.RequestException, AttributeError, xml.etree.ElementTree.ParseError) as ex:
+        wms_error = True
+    else:
         min_l_dist = 1000000
         matched_layer = None
         for wms_layer in wms.contents:
@@ -40,17 +42,11 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
         if matched_layer is not None:
             wms_layer_for_record = matched_layer
             match_dist = min_l_dist
-    except requests.RequestException as ex:
-        wms_timed_out = True
-    except AttributeError as ex:
-        error_during_wms_parsing = True
-    except xml.etree.ElementTree.ParseError as ex:
-        error_during_wms_parsing = True
 
     if num_layers == 1:
         only_1_choice = True
 
-    return [wms_layer_for_record, match_dist, only_1_choice, wms_timed_out, error_during_wms_parsing]
+    return [wms_layer_for_record, match_dist, only_1_choice, wms_error]
 
 
 def get_ogc_type(url):
@@ -82,6 +78,8 @@ def get_ogc_type(url):
     return ogc_type
 
 
+# TODO add logging i.e. note how many records in the CSW have been searched vs how many actually had WMSs in them
+
 # TODO speed up using threading / multiprocessing?
 #  https://blog.floydhub.com/multiprocessing-vs-threading-in-python-what-every-data-scientist-needs-to-know/
 
@@ -99,8 +97,7 @@ def search_csw_for_ogc_endpoints(csw_url, search_term=None, limit_count=0, ogc_s
     :return: None
     """
 
-    out_fields = ['title', 'subjects', 'url', 'wms_layer_for_record', 'only_1_choice', 'match_dist',
-                  'wms_timed_out', 'error_during_wms_parsing']
+    out_fields = ['title', 'subjects', 'url', 'wms_layer_for_record', 'only_1_choice', 'match_dist', 'wms_error']
 
     with open(csv_fname, 'w') as outpf:
         my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
@@ -171,8 +168,7 @@ def search_csw_for_ogc_endpoints(csw_url, search_term=None, limit_count=0, ogc_s
                                     wms_layer_for_record = res[0]
                                     match_dist = res[1]
                                     only_1_choice = res[2]
-                                    wms_timed_out = res[3]
-                                    error_during_wms_parsing = res[4]
+                                    wms_error = res[3]
                                     my_writer.writerow([
                                             title,
                                             subjects,
@@ -180,8 +176,7 @@ def search_csw_for_ogc_endpoints(csw_url, search_term=None, limit_count=0, ogc_s
                                             wms_layer_for_record,
                                             only_1_choice,
                                             match_dist,
-                                            wms_timed_out,
-                                            error_during_wms_parsing
+                                            wms_error
                                         ])
                                     if debug:
                                         print('title: ', title)
@@ -190,8 +185,7 @@ def search_csw_for_ogc_endpoints(csw_url, search_term=None, limit_count=0, ogc_s
                                         print('wms_layer_for_record: ', wms_layer_for_record)
                                         print('only_1_choice: ', only_1_choice)
                                         print('match_dist: ', match_dist)
-                                        print('wms_timed_out: ', wms_timed_out)
-                                        print('error_during_wms_parsing: ', error_during_wms_parsing)
+                                        print('wms_error: ', wms_error)
             start_pos += max_record_default
 
 
@@ -203,10 +197,17 @@ def main():
     #     csv_fname='/home/james/geocrud/ogc_endpoints_greenspace.csv'
     # )
 
+    # search_csw_for_ogc_endpoints(
+    #     csw_url='https://ckan.publishing.service.gov.uk/csw?request=GetCapabilities&service=CSW&version=2.0.2',
+    #     limit_count=200,
+    #     ogc_srv_type='WMS:GetCapabilties',
+    #     csv_fname='/home/james/geocrud/wms_layers.csv'
+    # )
+
     # TODO: clickify?
+    # TODO: read in CSWs from an external file and then search in each CSW
     search_csw_for_ogc_endpoints(
         csw_url='https://ckan.publishing.service.gov.uk/csw?request=GetCapabilities&service=CSW&version=2.0.2',
-        limit_count=200,
         ogc_srv_type='WMS:GetCapabilties',
         csv_fname='/home/james/geocrud/wms_layers.csv'
     )
