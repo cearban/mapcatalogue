@@ -73,22 +73,33 @@ def search_csw_for_ogc_endpoints(csw_url, search_term=None, limit_count=0):
             r_idx += 1
 
             if r is not None:
-                # clean up the title
-                title = r.title.replace("\n", "")
+                # fetch / clean-up title
+                title = r.title
+                if title is not None:
+                    title = title.replace("\n", "")
+
+                # fetch / clean-up subjects
                 # convert the list of subjects to a string. Sometimes the list has a None, so filter these off
-                subjects = ', '.join(list(filter(None, r.subjects)))
+                subjects = r.subjects
+                if subjects is not None:
+                    subjects = ', '.join(list(filter(None, subjects)))
+
+                # fetch / clean-up references
                 references = r.references
-                ogc_urls = []
-                for ref in references:
-                    url = ref['url']
-                    ogc_url_type = get_ogc_type(url)
-                    if ogc_url_type is not None:
-                        ogc_urls.append([ogc_url_type, url])
-                if len(ogc_urls) > 0:
-                    for u in ogc_urls:
-                        out_records.append([r_idx, title, subjects, u[0], u[1]])
-                else:
-                    out_records.append([r_idx, title, subjects, 'NotFound', 'NotFound'])
+                if references is not None:
+                    ogc_urls = []
+                    for ref in references:
+                        url = ref['url']
+                        ogc_url_type = None
+                        if url is not None:
+                            ogc_url_type = get_ogc_type(url)
+                        if ogc_url_type is not None:
+                            ogc_urls.append([ogc_url_type, url])
+                    if len(ogc_urls) > 0:
+                        for u in ogc_urls:
+                            out_records.append([r_idx, title, subjects, u[0], u[1]])
+                    else:
+                        out_records.append([r_idx, title, subjects, 'NotFound', 'NotFound'])
         start_pos += max_record_default
 
     return out_records
@@ -112,6 +123,5 @@ if __name__ == "__main__":
     # )
 
     build_catalog(
-       csw_url='https://ckan.publishing.service.gov.uk/csw?request=GetCapabilities&service=CSW&version=2.0.2',
-       limit_count=1000
+       csw_url='https://ckan.publishing.service.gov.uk/csw?request=GetCapabilities&service=CSW&version=2.0.2'
     )
