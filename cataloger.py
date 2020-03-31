@@ -26,6 +26,11 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
 
     try:
         wms = WebMapService(ogc_url, timeout=wms_timeout)
+    # TODO check exception handling
+    # TODO - matched_layer need to be an unnormalised form (i.e. non-lcase) otherwise we will be unable to retrieve it later
+    # TODO - are we checking against WMS layer name OR title, since i.e. in
+    #  http://maps.norfolk.gov.uk/soapservices/inspire/norfolk_county_council/MapServer/WMSServer?request=GetCapabilities&service=WMS
+    #   etc name is and integer like 0,1,2 etc or default whereas title contains string of layer name
     except (owslib.util.ServiceException, requests.RequestException, AttributeError, xml.etree.ElementTree.ParseError) as ex:
         wms_error = True
     else:
