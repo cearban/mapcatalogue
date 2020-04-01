@@ -7,7 +7,7 @@ from owslib.wms import WebMapService
 import Levenshtein as Lvn # https://rawgit.com/ztane/python-Levenshtein/master/docs/Levenshtein.html
 import requests
 
-
+# TODO - up the timeout, as much as 30s?
 def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
     """
     given an ogc_url i.e. a WMS GetCapabilties, search the layers of that WMS
@@ -82,11 +82,14 @@ def get_ogc_type(url):
 
     return ogc_type
 
+# TODO an alternative mode would just be to return all OGC endpoints that were discovered without going by layer
+#  i.e. the unique set of WMS etc GetCapabilities documents
 
 # TODO add logging i.e. note how many records in the CSW have been searched vs how many actually had WMSs in them
 
 # TODO speed up using threading / multiprocessing?
 #  https://blog.floydhub.com/multiprocessing-vs-threading-in-python-what-every-data-scientist-needs-to-know/
+#   https://docs.python-guide.org/scenarios/speed/
 
 # TODO grab spatial and temporal (not always avail). So able to group by subject, spatial and temporal
 def search_csw_for_ogc_endpoints(csw_url, search_term=None, limit_count=0, ogc_srv_type='WMS:GetCapabilties', csv_fname=None, debug=False):
