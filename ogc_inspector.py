@@ -1,5 +1,6 @@
 import csv
 import os
+import owslib
 from owslib.csw import CatalogueServiceWeb
 from owslib.fes import PropertyIsEqualTo, PropertyIsLike, BBox
 from owslib.wms import WebMapService
@@ -131,31 +132,80 @@ def check_wms_map_image(fn):
 
 
 def main():
+    out_records = []
     c = 0
-    fn = '/home/james/geocrud/wms_layers.csv'
-    if os.path.exists(fn):
-        with open(fn, 'r') as inpf:
-            my_reader = csv.DictReader(inpf)
+    in_fn = '/home/james/geocrud/wms_layers.csv'
+    out_fn = '/home/james/geocrud/wms_layers_w_bbox.csv'
+
+    # with open(out_fn, 'w') as outpf:
+    #     my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
+    #     my_writer.writerow(['c', 'title', 'url', 'wms_layer_for_record', 'bb'])
+    #
+    #     if os.path.exists(in_fn):
+    #         with open(in_fn, 'r') as inpf:
+    #             my_reader = csv.DictReader(inpf)
+    #             for r in my_reader:
+    #                 c += 1
+    #                 title = r['title']
+    #                 subjects = r['subjects']
+    #                 url = r['url']
+    #                 wms_layer_for_record = r['wms_layer_for_record']
+    #                 only_1_choice = r['only_1_choice']
+    #                 match_dist = r['match_dist']
+    #                 wms_error = r['wms_error']
+    #                 if wms_error == 'False':
+    #                     #print('title: ', title)
+    #                     #print('subjects: ', subjects)
+    #                     #print('url: ', url)
+    #                     #print('wms_layer_for_record: ', wms_layer_for_record)
+    #                     #print('only_1_choice: ', only_1_choice)
+    #                     #print('match_dist: ', match_dist)
+    #                     #print('wms_error: ', wms_error)
+    #                     bb = None
+    #                     try:
+    #                         wms = WebMapService(url, timeout=5)
+    #                     except owslib.util.ServiceException as ex_owslib:
+    #                         print('owslib exception: ', ex_owslib)
+    #                     except requests.exceptions.ReadTimeout as ex_req_rdto:
+    #                         print('Requests exception: ', ex_req_rdto)
+    #                     except requests.exceptions.RequestException as ex_req_reqex:
+    #                         print('Requests exception: ', ex_req_reqex)
+    #                     else:
+    #                         try:
+    #                             lyr = wms[wms_layer_for_record]
+    #                         except KeyError as ex:
+    #                             pass
+    #                             #print(str(ex))
+    #                         else:
+    #                             bb = wms[wms_layer_for_record].boundingBox
+    #
+    #                     if bb is not None:
+    #                         my_writer.writerow([c, title, url, wms_layer_for_record, bb])
+
+    c = 0
+
+    all_srs = {}
+
+    with open(out_fn, 'r') as inpf:
+        my_reader = csv.DictReader(inpf)
+        with open('/home/james/Desktop/bng_wms_bboxes.csv', 'w') as outpf:
+            my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
+            my_writer.writerow(['id', 'title', 'url', 'lyr_name', 'xmin', 'ymin', 'xmax', 'ymax', 'srs'])
             for r in my_reader:
                 c += 1
-                if c < 200:
-                    title = r['title']
-                    subjects = r['subjects']
-                    url = r['url']
-                    wms_layer_for_record = r['wms_layer_for_record']
-                    only_1_choice = r['only_1_choice']
-                    match_dist = r['match_dist']
-                    wms_error = r['wms_error']
-                    print(c)
-                    print('title: ', title)
-                    print('subjects: ', subjects)
-                    print('url: ', url)
-                    print('wms_layer_for_record: ', wms_layer_for_record)
-                    print('only_1_choice: ', only_1_choice)
-                    print('match_dist: ', match_dist)
-                    print('wms_error: ', wms_error)
-                    print('\n')
+                id = int(r['c'])
+                title = r['title']
+                url = r['url']
+                lyr_name = r['wms_layer_for_record']
+                lyr_bbox = ((r['bb'])[1:-1]).split(',')
+                xmin, ymin, xmax, ymax, srs = float(lyr_bbox[0]), float(lyr_bbox[1]), float(lyr_bbox[2]), float(lyr_bbox[3]), (lyr_bbox[4].replace("'", "")).strip()
+                is_bng = False
+                if srs is not None:
+                    if srs == 'EPSG:27700':
+                        is_bng = True
 
+                if is_bng:
+                    my_writer.writerow([id, title, url, lyr_name, xmin, ymin, xmax, ymax, srs])
 
 if __name__ == "__main__":
     main()
