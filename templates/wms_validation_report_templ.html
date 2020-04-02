@@ -1,0 +1,45 @@
+<html>
+<head>
+    <style type="text/css">
+        #map_thumbnail {
+            border: 2px solid royalblue;
+        }
+
+        table, th, td {
+            border: 1px solid black;
+        }
+
+        .wms_ok {
+            color: green;
+        }
+
+        .wms_not_ok {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+<table>
+    <tr>
+        <th>WMS URL</th>
+        <th>WMS Layer</th>
+        <th>WMS OK</th>
+        <th>GetMap Img</th>
+        <th>GetMap Img Check</th>
+    </tr>
+    {% for n in my_list %}
+    <tr>
+        <td>{{n[0]}}</td>
+        <td>{{n[1]}}</td>
+        {% if n[2] == 'False' %}
+            <td class="wms_not_ok">N</td>
+        {% else %}
+            <td class="wms_ok">Y</td>
+        {% endif %}
+        <td><img id="map_thumbnail" width=150 height=150 src="{{n[4]}}"></img></td>
+        <td>{{n[3]}}</td>
+    </tr>
+    {% endfor %}
+</table>
+</body>
+</html>
