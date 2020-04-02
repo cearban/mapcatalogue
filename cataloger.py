@@ -7,7 +7,7 @@ from owslib.wms import WebMapService
 import Levenshtein as Lvn # https://rawgit.com/ztane/python-Levenshtein/master/docs/Levenshtein.html
 import requests
 
-# TODO - up the timeout, as much as 30s?
+# TODO - [1] up the timeout, as much as 30s?
 def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
     """
     given an ogc_url i.e. a WMS GetCapabilties, search the layers of that WMS
@@ -26,9 +26,11 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
 
     try:
         wms = WebMapService(ogc_url, timeout=wms_timeout)
-    # TODO check exception handling
-    # TODO - matched_layer need to be an unnormalised form (i.e. non-lcase) otherwise we will be unable to retrieve it later
-    # TODO - are we checking against WMS layer name OR title, since i.e. in
+    # TODO [2] check exception handling
+
+    # TODO [3] matched_layer need to be an unnormalised form (i.e. non-lcase) otherwise we will be unable to retrieve it later
+
+    # TODO [4] are we checking against WMS layer name OR title, since i.e. in
     #  http://maps.norfolk.gov.uk/soapservices/inspire/norfolk_county_council/MapServer/WMSServer?request=GetCapabilities&service=WMS
     #   etc name is and integer like 0,1,2 etc or default whereas title contains string of layer name
     except (owslib.util.ServiceException, requests.RequestException, AttributeError, xml.etree.ElementTree.ParseError) as ex:
@@ -82,16 +84,16 @@ def get_ogc_type(url):
 
     return ogc_type
 
-# TODO an alternative mode would just be to return all OGC endpoints that were discovered without going by layer
+# TODO [5] an alternative mode would just be to return all OGC endpoints that were discovered without going by layer
 #  i.e. the unique set of WMS etc GetCapabilities documents
 
-# TODO add logging i.e. note how many records in the CSW have been searched vs how many actually had WMSs in them
+# TODO [6] add logging i.e. note how many records in the CSW have been searched vs how many actually had WMSs in them
 
-# TODO speed up using threading / multiprocessing?
+# TODO [7] speed up using threading / multiprocessing?
 #  https://blog.floydhub.com/multiprocessing-vs-threading-in-python-what-every-data-scientist-needs-to-know/
 #   https://docs.python-guide.org/scenarios/speed/
 
-# TODO grab spatial and temporal (not always avail). So able to group by subject, spatial and temporal
+# TODO [8] grab spatial and temporal (not always avail). So able to group by subject, spatial and temporal
 def search_csw_for_ogc_endpoints(csw_url, search_term=None, limit_count=0, ogc_srv_type='WMS:GetCapabilties', csv_fname=None, debug=False):
     """
     query all exposed records in an OGC CSW and search for records that have WMS endpoints
@@ -212,12 +214,20 @@ def main():
     #     csv_fname='/home/james/geocrud/wms_layers.csv'
     # )
 
-    # TODO: clickify?
-    # TODO: read in CSWs from an external file and then search in each CSW
+    # TODO: [9] clickify?
+    #
+    # TODO: [10] read in CSWs from an external file and then search in each CSW
+    # search_csw_for_ogc_endpoints(
+    #     csw_url='https://ckan.publishing.service.gov.uk/csw?request=GetCapabilities&service=CSW&version=2.0.2',
+    #     ogc_srv_type='WMS:GetCapabilties',
+    #     csv_fname='/home/james/geocrud/wms_layers.csv'
+    # )
+
     search_csw_for_ogc_endpoints(
-        csw_url='https://ckan.publishing.service.gov.uk/csw?request=GetCapabilities&service=CSW&version=2.0.2',
+        csw_url='https://data.linz.govt.nz/services/csw/?service=CSW&version=2.0.2&request=GetCapabilities',
         ogc_srv_type='WMS:GetCapabilties',
-        csv_fname='/home/james/geocrud/wms_layers.csv'
+        csv_fname='/home/james/Desktop/nz_wms_layers.csv',
+        limit_count=200
     )
 
 
