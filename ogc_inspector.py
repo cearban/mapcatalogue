@@ -48,7 +48,9 @@ def check_wms_map_image(fn):
             im = Image.open(fn)
             if len(im.getcolors()) > 1:
                 status = "seems to be populated"
+                # we could use opencv to look for features and zoom-to their extent!
             else:
+                # other cause of this could be that data is not visible at this scale
                 status = "seems to all be background / no layer features in extent?"
         else:
             status = "seems to be a nosize img"
@@ -147,7 +149,7 @@ def interrogate_wms_layers(in_fn='/home/james/geocrud/wms_layers_w_bbox.csv'):
 
         for r in my_reader:
             c += 1
-            if c < 10:
+            if c < 30:
                 id = int(r['c'])
                 title = r['title']
                 url = r['url']
