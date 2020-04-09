@@ -7,6 +7,7 @@ from owslib.wms import WebMapService
 import Levenshtein as Lvn # https://rawgit.com/ztane/python-Levenshtein/master/docs/Levenshtein.html
 import requests
 
+
 # TODO - [1] up the timeout, as much as 30s?
 def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
     """
@@ -93,8 +94,9 @@ def get_ogc_type(url):
 #  https://blog.floydhub.com/multiprocessing-vs-threading-in-python-what-every-data-scientist-needs-to-know/
 #   https://docs.python-guide.org/scenarios/speed/
 
+
 # TODO [8] grab spatial and temporal (not always avail). So able to group by subject, spatial and temporal
-def search_csw_for_ogc_endpoints(csw_url, search_term=None, limit_count=0, ogc_srv_type='WMS:GetCapabilties', csv_fname=None, debug=False):
+def search_csw_for_ogc_endpoints(csw_url, search_term=None, limit_count=0, ogc_srv_type='WMS:GetCapabilties', out_csv_fname=None, debug=False):
     """
     query all exposed records in an OGC CSW and search for records that have WMS endpoints
 
@@ -109,7 +111,7 @@ def search_csw_for_ogc_endpoints(csw_url, search_term=None, limit_count=0, ogc_s
 
     out_fields = ['title', 'subjects', 'url', 'wms_layer_for_record', 'only_1_choice', 'match_dist', 'wms_error']
 
-    with open(csv_fname, 'w') as outpf:
+    with open(out_csv_fname, 'w') as outpf:
         my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
         my_writer.writerow(out_fields)
         csw = CatalogueServiceWeb(csw_url)
@@ -200,35 +202,19 @@ def search_csw_for_ogc_endpoints(csw_url, search_term=None, limit_count=0, ogc_s
 
 
 def main():
-    # search_csw_for_ogc_endpoints(
-    #     csw_url='https://ckan.publishing.service.gov.uk/csw?request=GetCapabilities&service=CSW&version=2.0.2',
-    #     search_term='Greenspace',
-    #     limit_count=1000,
-    #     csv_fname='/home/james/geocrud/ogc_endpoints_greenspace.csv'
-    # )
+    csw_list = []
+    with open('data/csw_catalogue.csv', 'r') as inpf:
+        my_reader = csv.DictReader(inpf)
+        for r in my_reader:
+            csw_list.append(r['csw'])
 
-    # search_csw_for_ogc_endpoints(
-    #     csw_url='https://ckan.publishing.service.gov.uk/csw?request=GetCapabilities&service=CSW&version=2.0.2',
-    #     limit_count=200,
-    #     ogc_srv_type='WMS:GetCapabilties',
-    #     csv_fname='/home/james/geocrud/wms_layers.csv'
-    # )
-
-    # TODO: [9] clickify?
-    #
-    # TODO: [10] read in CSWs from an external file and then search in each CSW
-    # search_csw_for_ogc_endpoints(
-    #     csw_url='https://ckan.publishing.service.gov.uk/csw?request=GetCapabilities&service=CSW&version=2.0.2',
-    #     ogc_srv_type='WMS:GetCapabilties',
-    #     csv_fname='/home/james/geocrud/wms_layers.csv'
-    # )
-
-    search_csw_for_ogc_endpoints(
-        csw_url='https://data.linz.govt.nz/services/csw/?service=CSW&version=2.0.2&request=GetCapabilities',
-        ogc_srv_type='WMS:GetCapabilties',
-        csv_fname='/home/james/Desktop/nz_wms_layers.csv',
-        limit_count=200
-    )
+    for csw_url in csw_list:
+        search_csw_for_ogc_endpoints(
+            csw_url=csw_url,
+            limit_count=200,
+            ogc_srv_type='WMS:GetCapabilties',
+            out_csv_fname='/home/james/Desktop/wms_layers.csv'
+        )
 
 
 if __name__ == "__main__":
