@@ -1,26 +1,6 @@
 from owslib.csw import CatalogueServiceWeb
 from concurrent.futures import ThreadPoolExecutor
-import requests
 import csv
-
-
-# def fetch_webpage(url):
-#     page = requests.get(url)
-#     return page
-#
-#
-# def do_processing(use_threading=False):
-#     my_urls = ['http://google.com'] * 10
-#
-#     if use_threading:
-#         pool = ThreadPoolExecutor(max_workers=5)
-#
-#         for page in pool.map(fetch_webpage, my_urls):
-#
-#             print(page.text)
-#     else:
-#         for url in my_urls:
-#             print(fetch_webpage(url).text)
 
 
 def fetch_titles_from_csw(job_params):
@@ -41,7 +21,7 @@ def fetch_titles_from_csw(job_params):
 
 def do_processing(threaded=True):
     start_pos = 0
-    limit_count = 2000
+    limit_count = 500
     record_count = 10000000
     all_titles = []
 
@@ -52,14 +32,11 @@ def do_processing(threaded=True):
     csw = CatalogueServiceWeb(csw_url)
     max_record_default = int(csw.constraints['MaxRecordDefault'].values[0])
 
-    jobs = []
-    while start_pos < record_count:
-        jobs.append([csw_url, start_pos])
-        start_pos += max_record_default
+    jobs = [[csw_url, i] for i in range(start_pos, record_count, max_record_default)]
 
     if threaded:
         print("Using Threading")
-        pool = ThreadPoolExecutor(max_workers=5)
+        pool = ThreadPoolExecutor(max_workers=10)
         for job in pool.map(fetch_titles_from_csw, jobs):
             titles_in_csw = job
             for i in titles_in_csw:
@@ -86,8 +63,9 @@ def do_processing(threaded=True):
 
 
 def main():
-    do_processing(threaded=True)
+    do_processing(threaded=False)
 
 
 if __name__ == "__main__":
     main()
+
