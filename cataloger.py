@@ -2,13 +2,12 @@ import csv
 import xml
 import owslib
 from owslib.csw import CatalogueServiceWeb
-from owslib.fes import PropertyIsEqualTo
 from owslib.wms import WebMapService
 import Levenshtein as Lvn # https://rawgit.com/ztane/python-Levenshtein/master/docs/Levenshtein.html
 import requests
+from concurrent.futures import ThreadPoolExecutor
 
 
-# TODO - [1] up the timeout, as much as 30s?
 def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
     """
     given an ogc_url i.e. a WMS GetCapabilties, search the layers of that WMS
@@ -27,13 +26,6 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
 
     try:
         wms = WebMapService(ogc_url, timeout=wms_timeout)
-    # TODO [2] check exception handling
-
-    # TODO [3] matched_layer need to be an unnormalised form (i.e. non-lcase) otherwise we will be unable to retrieve it later
-
-    # TODO [4] are we checking against WMS layer name OR title, since i.e. in
-    #  http://maps.norfolk.gov.uk/soapservices/inspire/norfolk_county_council/MapServer/WMSServer?request=GetCapabilities&service=WMS
-    #   etc name is and integer like 0,1,2 etc or default whereas title contains string of layer name
     except (owslib.util.ServiceException, requests.RequestException, AttributeError, xml.etree.ElementTree.ParseError) as ex:
         wms_error = True
     else:
@@ -46,7 +38,7 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
             l_dist = Lvn.distance(record_title_norm, wms_layer_norm)
             if l_dist < min_l_dist:
                 min_l_dist = l_dist
-                matched_layer = wms_layer_norm
+                matched_layer = wms_layer
         if matched_layer is not None:
             wms_layer_for_record = matched_layer
             match_dist = min_l_dist
@@ -85,120 +77,104 @@ def get_ogc_type(url):
 
     return ogc_type
 
-# TODO [5] an alternative mode would just be to return all OGC endpoints that were discovered without going by layer
-#  i.e. the unique set of WMS etc GetCapabilities documents
 
-# TODO [6] add logging i.e. note how many records in the CSW have been searched vs how many actually had WMSs in them
+# TODO just retrieve all WMSs rather than layers?
+# TODO add logging
+# TODO grab temporal and spatial elements
+# TODO currently subjects is retrieved from CSW record but what about keywords from WMS itself?
+def query_csw(params):
+    out_records = []
+    csw_url = params[0]
+    start_pos = params[1]
+    ogc_srv_type = params[2]
+    csw = CatalogueServiceWeb(csw_url)
+    csw.getrecords2(startposition=start_pos)
 
-# TODO [7] speed up using threading / multiprocessing?
-#  https://blog.floydhub.com/multiprocessing-vs-threading-in-python-what-every-data-scientist-needs-to-know/
-#   https://docs.python-guide.org/scenarios/speed/
+    for rec in csw.records:
+        r = None
+        r = csw.records[rec]
+
+        if r is not None:
+            # fetch / clean-up title
+            title = r.title
+            if title is not None:
+                title = title.replace("\n", "")
+
+            # fetch / clean-up subjects
+            # convert the list of subjects to a string. Sometimes the list has a None, so filter these off
+            subjects = r.subjects
+            if subjects is not None:
+                subjects = ', '.join(list(filter(None, subjects)))
+
+            # fetch / clean-up references
+            references = r.references
+            if references is not None:
+                ogc_urls = []
+                for ref in references:
+                    url = ref['url']
+                    ogc_url_type = None
+                    if url is not None:
+                        ogc_url_type = get_ogc_type(url)
+                    if ogc_url_type is not None:
+                        if ogc_url_type == ogc_srv_type:
+                            # interogating WMS here
+                            res = search_ogc_service_for_record_title(url, title)
+                            wms_layer_for_record = res[0]
+                            if wms_layer_for_record is not None:
+                                match_dist = res[1]
+                                only_1_choice = res[2]
+                                wms_error = res[3]
+                                out_records.append([
+                                        title,
+                                        subjects,
+                                        url,
+                                        wms_layer_for_record,
+                                        only_1_choice,
+                                        match_dist,
+                                        wms_error
+                                    ])
+
+    return out_records
 
 
-# TODO [8] grab spatial and temporal (not always avail). So able to group by subject, spatial and temporal
-def search_csw_for_ogc_endpoints(csw_url, search_term=None, limit_count=0, ogc_srv_type='WMS:GetCapabilties', out_csv_fname=None, debug=False):
-    """
-    query all exposed records in an OGC CSW and search for records that have WMS endpoints
+def search_csw_for_ogc_endpoints(out_csv_fname, csw_url, limit_count=0, ogc_srv_type='WMS:GetCapabilties', debug=False):
+    limit_count = limit_count
+    csw = CatalogueServiceWeb(csw_url)
+    resultset_size = int(csw.constraints['MaxRecordDefault'].values[0])
 
-    :param csw_url: OGC CSW GetCapabilties
-    :param search_term: search term if we want to limit to other than all
-    :param limit_count: restrict number of records
-    :param ogc_srv_type: the type of OGC endpoint we care about defaults to WMS:GetCapabilties
-    :param csv_fname: a CSV file into which outputs will be dumped
-    :param debug: print stuff out during running
-    :return: None
-    """
+    if debug:
+        print('CSW MaxRecordDefault:{}'.format(str(resultset_size)))
 
-    out_fields = ['title', 'subjects', 'url', 'wms_layer_for_record', 'only_1_choice', 'match_dist', 'wms_error']
+    csw.getrecords2(startposition=0)
+    num_records = csw.results['matches']
+
+    if debug:
+        print('CSW Total Number of Matching Records:{}'.format(str(num_records)))
+
+    limited = False
+    if limit_count > 0:
+        limited = True
+        if limit_count < num_records:
+            num_records = limit_count
+
+    if debug:
+        print('num_records: {} (limited:{})'.format(str(num_records), limited))
+
+    jobs = [[csw_url, i, ogc_srv_type] for i in range(0, num_records, resultset_size)]
+
+    pool = ThreadPoolExecutor(max_workers=10)
 
     with open(out_csv_fname, 'w') as outpf:
         my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
+        out_fields = ['title', 'subjects', 'url', 'wms_layer_for_record', 'only_1_choice', 'match_dist', 'wms_error']
         my_writer.writerow(out_fields)
-        csw = CatalogueServiceWeb(csw_url)
-        retrieved_first_set = False
-        record_count = 10000000
-        limit = False
-        if limit_count > 0:
-            limit = True
-            record_count = limit_count
 
-        start_pos = 0
-        max_record_default = int(csw.constraints['MaxRecordDefault'].values[0])
-        r_idx = 0
-
-        while start_pos < record_count:
-            if search_term is None:
-                csw.getrecords2(startposition=start_pos)
-            else:
-                csw_query = PropertyIsEqualTo('csw:AnyText', search_term)
-                csw.getrecords2(constraints=[csw_query], startposition=start_pos)
-            # we only know how many records there are when we have retrieved records for the first time
-            if not retrieved_first_set:
-                if not limit:
-                    record_count = csw.results['matches']
-                else:
-                    # we are limiting
-                    # but the limit we have set might be much larger than actual record count
-                    if csw.results['matches'] < record_count:
-                        record_count = csw.results['matches']
-                retrieved_first_set = True
-
-            for rec in csw.records:
-                r = None
-                if limit:
-                    if r_idx < record_count:
-                        r = csw.records[rec]
-                else:
-                    r = csw.records[rec]
-
-                r_idx += 1
-
-                if r is not None:
-                    # fetch / clean-up title
-                    title = r.title
-                    if title is not None:
-                        title = title.replace("\n", "")
-
-                    # fetch / clean-up subjects
-                    # convert the list of subjects to a string. Sometimes the list has a None, so filter these off
-                    subjects = r.subjects
-                    if subjects is not None:
-                        subjects = ', '.join(list(filter(None, subjects)))
-
-                    # fetch / clean-up references
-                    references = r.references
-                    if references is not None:
-                        ogc_urls = []
-                        for ref in references:
-                            url = ref['url']
-                            ogc_url_type = None
-                            if url is not None:
-                                ogc_url_type = get_ogc_type(url)
-                            if ogc_url_type is not None:
-                                if ogc_url_type == ogc_srv_type:
-                                    res = search_ogc_service_for_record_title(url, title)
-                                    wms_layer_for_record = res[0]
-                                    match_dist = res[1]
-                                    only_1_choice = res[2]
-                                    wms_error = res[3]
-                                    my_writer.writerow([
-                                            title,
-                                            subjects,
-                                            url,
-                                            wms_layer_for_record,
-                                            only_1_choice,
-                                            match_dist,
-                                            wms_error
-                                        ])
-                                    if debug:
-                                        print('title: ', title)
-                                        print('subjects: ', subjects)
-                                        print('ogc_url: ', url)
-                                        print('wms_layer_for_record: ', wms_layer_for_record)
-                                        print('only_1_choice: ', only_1_choice)
-                                        print('match_dist: ', match_dist)
-                                        print('wms_error: ', wms_error)
-            start_pos += max_record_default
+        job_n = 1
+        for job in pool.map(query_csw, jobs):
+            out_recs = job
+            if len(out_recs) > 0:
+                for r in out_recs:
+                    my_writer.writerow(r)
 
 
 def main():
@@ -210,10 +186,10 @@ def main():
 
     for csw_url in csw_list:
         search_csw_for_ogc_endpoints(
+            out_csv_fname='/home/james/Desktop/wms_layers.csv',
             csw_url=csw_url,
-            limit_count=200,
-            ogc_srv_type='WMS:GetCapabilties',
-            out_csv_fname='/home/james/Desktop/wms_layers.csv'
+            limit_count=1000,
+            ogc_srv_type='WMS:GetCapabilties'
         )
 
 
