@@ -1,11 +1,64 @@
 import csv
+from concurrent.futures import ThreadPoolExecutor
+import os
+import uuid
 import xml
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+import Levenshtein as Lvn # https://rawgit.com/ztane/python-Levenshtein/master/docs/Levenshtein.html
 import owslib
 from owslib.csw import CatalogueServiceWeb
 from owslib.wms import WebMapService
-import Levenshtein as Lvn # https://rawgit.com/ztane/python-Levenshtein/master/docs/Levenshtein.html
+from pyproj import Transformer
+from PIL import Image
 import requests
-from concurrent.futures import ThreadPoolExecutor
+
+
+def validate_bbox(src_bbox):
+    valid_bbox = None
+    if src_bbox[4] != '':
+        src_srs = int((src_bbox[4]).split(':')[1])
+        if src_srs == 27700:
+            valid_bbox = src_bbox
+        else:
+            if src_srs in (3857, 4326):
+                src_x_min, src_y_min, src_x_max, src_y_max = src_bbox[0], src_bbox[1], src_bbox[2], src_bbox[3]
+                transformer = Transformer.from_crs(src_srs, 27700)
+                bng_xy_min = transformer.transform(src_x_min, src_y_min)
+                bng_xy_max = transformer.transform(src_x_max, src_y_max)
+                valid_bbox = (bng_xy_min[0], bng_xy_min[1], bng_xy_max[0], bng_xy_max[1], 'EPSG:27700')
+
+    return valid_bbox
+
+
+def check_wms_map_image(fn):
+    status = None
+
+    if os.path.exists(fn):
+        if os.path.getsize(fn) > 0:
+            with Image.open(fn) as im:
+                try:
+                    im_colors_list = im.getcolors()
+                except TypeError as ex:
+                    status = "PIL problem"
+                    print(ex)
+                else:
+                    try:
+                        number_of_cols_in_img = len(im_colors_list)
+                    except TypeError as ex:
+                        status = "PIL problem"
+                        print(ex)
+                    else:
+                        if number_of_cols_in_img > 1:
+                            status = "seems to be populated"
+                        else:
+                            # other cause of this could be that data is not visible at this scale
+                            status = "seems to all be background / no layer features in extent?"
+        else:
+            status = "seems to be a nosize img"
+    else:
+        status = "Image does not exist"
+
+    return status
 
 
 def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
@@ -20,13 +73,24 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
     """
     only_1_choice = False
     wms_layer_for_record = None
+    bbox = None
+    bbox_srs = None
     match_dist = None
     wms_error = False
+    made_get_map_req = False
     num_layers = 0
+    image_status = None
+    out_image_fname = None
 
     try:
         wms = WebMapService(ogc_url, timeout=wms_timeout)
-    except (owslib.util.ServiceException, requests.RequestException, AttributeError, xml.etree.ElementTree.ParseError) as ex:
+    except owslib.util.ServiceException as ex:
+        wms_error = True
+    except requests.RequestException as ex2:
+        wms_error = True
+    except AttributeError as ex3:
+        wms_error = True
+    except xml.etree.ElementTree.ParseError as ex4:
         wms_error = True
     else:
         min_l_dist = 1000000
@@ -39,14 +103,42 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
             if l_dist < min_l_dist:
                 min_l_dist = l_dist
                 matched_layer = wms_layer
+
         if matched_layer is not None:
             wms_layer_for_record = matched_layer
-            match_dist = min_l_dist
+            wms_layer_bbox = wms[wms_layer_for_record].boundingBox
+            bbox_srs = wms_layer_bbox[4]
+
+            if (bbox_srs != '') and (bbox_srs == 'EPSG:27700'):
+                match_dist = min_l_dist
+                made_get_map_req = True
+                try:
+                    img = wms.getmap(
+                        layers=[wms_layer_for_record],
+                        srs='EPSG:27700',
+                        bbox=wms_layer_bbox[:4],
+                        size=(400, 400),
+                        format='image/png'
+                        )
+                except owslib.util.ServiceException as ex2:
+                    wms_error = True
+                    print("Exception generated when making GetMap request:")
+                    print(ex2)
+                else:
+                    out_image_fname = os.path.join(
+                        '/home/james/geocrud/wms_getmaps',
+                        "".join([str(uuid.uuid1().int), "_wms_map.png"])
+                    )
+                    with open(out_image_fname, 'wb') as outpf:
+                        outpf.write(img.read())
+
+                    if os.path.exists(out_image_fname):
+                        image_status = check_wms_map_image(out_image_fname)
 
     if num_layers == 1:
         only_1_choice = True
 
-    return [wms_layer_for_record, match_dist, only_1_choice, wms_error]
+    return [wms_layer_for_record, bbox, bbox_srs, match_dist, only_1_choice, wms_error, made_get_map_req, image_status, out_image_fname]
 
 
 def get_ogc_type(url):
@@ -119,20 +211,39 @@ def query_csw(params):
                         if ogc_url_type == ogc_srv_type:
                             # interogating WMS here
                             res = search_ogc_service_for_record_title(url, title)
+
                             wms_layer_for_record = res[0]
                             if wms_layer_for_record is not None:
-                                match_dist = res[1]
-                                only_1_choice = res[2]
-                                wms_error = res[3]
+                                bbox = res[1]
+                                bbox_srs = res[2]
+                                match_dist = res[3]
+                                only_1_choice = res[4]
+                                wms_error = res[5]
+                                made_get_map = res[6]
+                                image_status = res[7]
+                                out_image_fname = res[8]
+                                #print('wms_layer_for_record: ', wms_layer_for_record)
+                                #print('bbox: ', bbox, type(bbox))
+                                #print('bbox_srs: ', bbox_srs)
+                                #print('match_dist: ', match_dist)
+                                #print('only_1_choice: ', only_1_choice)
+                                #print('wms_error: ', wms_error)
+                                #print('made_get_map: ', made_get_map)
+                                #print('image_status: ', image_status)
+                                #print('\n')
                                 out_records.append([
-                                        title,
-                                        subjects,
-                                        url,
-                                        wms_layer_for_record,
-                                        only_1_choice,
-                                        match_dist,
-                                        wms_error
-                                    ])
+                                    title,
+                                    subjects,
+                                    url,
+                                    wms_layer_for_record,
+                                    only_1_choice,
+                                    match_dist,
+                                    bbox_srs,
+                                    wms_error,
+                                    made_get_map,
+                                    image_status,
+                                    out_image_fname
+                                ])
 
     return out_records
 
@@ -166,15 +277,45 @@ def search_csw_for_ogc_endpoints(out_csv_fname, csw_url, limit_count=0, ogc_srv_
 
     with open(out_csv_fname, 'w') as outpf:
         my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
-        out_fields = ['title', 'subjects', 'url', 'wms_layer_for_record', 'only_1_choice', 'match_dist', 'wms_error']
+        out_fields = ['title', 'subjects', 'url', 'wms_layer_for_record', 'only_1_choice',
+                      'match_dist', 'bbox_srs', 'wms_error', 'made_get_map_req', 'image_status',
+                      'out_image_fname']
         my_writer.writerow(out_fields)
 
-        job_n = 1
         for job in pool.map(query_csw, jobs):
             out_recs = job
             if len(out_recs) > 0:
                 for r in out_recs:
                     my_writer.writerow(r)
+
+
+def generate_report(csv_fname='/home/james/Desktop/wms_layers.csv'):
+    context = []
+    if os.path.exists(csv_fname):
+        with open(csv_fname, 'r') as inpf:
+            my_reader = csv.DictReader(inpf)
+            for r in my_reader:
+                url = r['url']
+                lyr_name = r['wms_layer_for_record']
+                wms_error = r['wms_error']
+                image_status = r['image_status']
+                out_fn = r['out_image_fname']
+                context.append([
+                    url,
+                    lyr_name,
+                    wms_error,
+                    image_status,
+                    out_fn
+                ])
+
+    env = Environment(
+        loader=FileSystemLoader('/home/james/PycharmProjects/mapcatalogue/templates'),
+        autoescape=select_autoescape(['html', 'xml'])
+    )
+    template = env.get_template('wms_validation_report_templ.html')
+
+    with open('/home/james/Desktop/wms_validation_report.html', 'w') as outpf:
+        outpf.write(template.render(my_list=context))
 
 
 def main():
@@ -191,6 +332,8 @@ def main():
             limit_count=1000,
             ogc_srv_type='WMS:GetCapabilties'
         )
+
+    generate_report()
 
 
 if __name__ == "__main__":
