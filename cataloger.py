@@ -109,21 +109,23 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
             wms_layer_bbox = wms[wms_layer_for_record].boundingBox
             bbox_srs = wms_layer_bbox[4]
 
-            if (bbox_srs != '') and (bbox_srs == 'EPSG:27700'):
+            if bbox_srs != '':
                 match_dist = min_l_dist
                 made_get_map_req = True
                 try:
                     img = wms.getmap(
                         layers=[wms_layer_for_record],
-                        srs='EPSG:27700',
+                        srs=bbox_srs,
                         bbox=wms_layer_bbox[:4],
                         size=(400, 400),
                         format='image/png'
                         )
-                except owslib.util.ServiceException as ex2:
+                except owslib.util.ServiceException as owslib_ex:
                     wms_error = True
-                    print("Exception generated when making GetMap request:")
-                    print(ex2)
+                    print(owslib_ex)
+                except requests.exceptions.RequestException as requests_ex:
+                    wms_error = True
+                    print(requests_ex)
                 else:
                     out_image_fname = os.path.join(
                         '/home/james/geocrud/wms_getmaps',
@@ -295,12 +297,14 @@ def generate_report(csv_fname='/home/james/Desktop/wms_layers.csv'):
         with open(csv_fname, 'r') as inpf:
             my_reader = csv.DictReader(inpf)
             for r in my_reader:
+                title = r['title']
                 url = r['url']
                 lyr_name = r['wms_layer_for_record']
                 wms_error = r['wms_error']
                 image_status = r['image_status']
                 out_fn = r['out_image_fname']
                 context.append([
+                    title,
                     url,
                     lyr_name,
                     wms_error,
@@ -329,7 +333,7 @@ def main():
         search_csw_for_ogc_endpoints(
             out_csv_fname='/home/james/Desktop/wms_layers.csv',
             csw_url=csw_url,
-            limit_count=1000,
+            limit_count=300,
             ogc_srv_type='WMS:GetCapabilties'
         )
 
