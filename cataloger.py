@@ -11,6 +11,13 @@ from owslib.wms import WebMapService
 from pyproj import Transformer
 from PIL import Image
 import requests
+import logging
+logging.basicConfig(
+    filename='/home/james/Desktop/mapcatalog.log',
+    filemode='w',
+    format='%(name)s - %(levelname)s - %(message)s',
+    level=logging.DEBUG
+)
 
 
 def validate_bbox(src_bbox):
@@ -40,6 +47,7 @@ def check_wms_map_image(fn):
                 try:
                     im_colors_list = im.getcolors()
                 except TypeError as ex:
+                    logging.error("Exception raised when checking image:", exc_info=True)
                     print("Exception raised when checking image:")
                     print('\t', ex)
                     status = "Invalid"
@@ -47,6 +55,7 @@ def check_wms_map_image(fn):
                     try:
                         number_of_cols_in_img = len(im_colors_list)
                     except TypeError as ex:
+                        logging.error("Exception raised when checking image:", exc_info=True)
                         print("Exception raised when checking image:")
                         print('\t', ex)
                         status = "Invalid"
@@ -92,18 +101,22 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
     try:
         wms = WebMapService(ogc_url, timeout=wms_timeout)
     except owslib.util.ServiceException as owslib_srv_ex:
+        logging.error("Exception raised when instantiating WMS:", exc_info=True)
         print("Exception raised when instantiating WMS")
         print('\t', owslib_srv_ex)
         wms_get_cap_error = True
     except requests.exceptions.RequestException as requests_ex:
-        print("Exception raised when instantiating WMS")
+        logging.error("Exception raised when instantiating WMS:", exc_info=True)
+        print("Exception raised when instantiating WMS:")
         print('\t', requests_ex)
         wms_get_cap_error = True
     except AttributeError as attrib_error_ex:
+        logging.error("Exception raised when instantiating WMS:", exc_info=True)
         print("Exception raised when instantiating WMS")
         print('\t', attrib_error_ex)
         wms_get_cap_error = True
     except xml.etree.ElementTree.ParseError as etree_ex:
+        logging.error("Exception raised when instantiating WMS:", exc_info=True)
         print("Exception raised when instantiating WMS")
         print('\t', etree_ex)
         wms_get_cap_error = True
@@ -140,10 +153,12 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
                         format='image/png'
                         )
                 except owslib.util.ServiceException as owslib_srv_ex2:
+                    logging.error("Exception raised when making WMS GetMap Request:", exc_info=True)
                     print("Exception raised when making WMS GetMap Request:")
                     print('\t', owslib_srv_ex2)
                     wms_get_map_error = True
                 except requests.exceptions.RequestException as requests_ex:
+                    logging.error("Exception raised when making WMS GetMap Request:", exc_info=True)
                     print("Exception raised when making WMS GetMap Request:")
                     print('\t', requests_ex)
                     wms_get_map_error = True
@@ -207,6 +222,7 @@ def query_csw(params):
     try:
         csw = CatalogueServiceWeb(csw_url)
     except (owslib.util.ServiceException, requests.exceptions.RequestException) as csw_ex:
+        logging.error("Exception raised when instantiating CSW:", exc_info=True)
         print("Exception raised when instantiating CSW")
         print('\t', csw_ex)
     else:
@@ -276,7 +292,8 @@ def search_csw_for_ogc_endpoints(out_csv_fname, csw_url, limit_count=0, ogc_srv_
     try:
         csw = CatalogueServiceWeb(csw_url)
     except (owslib.util.ServiceException, requests.exceptions.RequestException) as csw_ex:
-        print("Exception raised when instantiating CSW")
+        logging.error("Exception raised when instantiating CSW:", exc_info=True)
+        print("Exception raised when instantiating CSW:")
         print('\t', csw_ex)
     else:
         resultset_size = int(csw.constraints['MaxRecordDefault'].values[0])
@@ -357,7 +374,7 @@ def main():
         search_csw_for_ogc_endpoints(
             out_csv_fname='/home/james/Desktop/wms_layers.csv',
             csw_url=csw_url,
-            limit_count=300,
+            limit_count=100,
             ogc_srv_type='WMS:GetCapabilties'
         )
 
