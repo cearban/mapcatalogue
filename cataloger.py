@@ -172,10 +172,9 @@ def get_ogc_type(url):
     return ogc_type
 
 
-# TODO just retrieve all WMSs rather than layers?
-# TODO add logging
-# TODO grab temporal and spatial elements
-# TODO currently subjects is retrieved from CSW record but what about keywords from WMS itself?
+# TODO [1] add logging
+# TODO [2] just retrieve all WMSs rather than layers?
+# TODO [3] grab temporal and spatial elements
 def query_csw(params):
     out_records = []
     csw_url = params[0]
