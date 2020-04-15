@@ -12,12 +12,6 @@ from pyproj import Transformer
 from PIL import Image
 import requests
 import logging
-logging.basicConfig(
-    filename='/home/james/Desktop/mapcatalog.log',
-    filemode='w',
-    format='%(name)s - %(levelname)s - %(message)s',
-    level=logging.DEBUG
-)
 
 
 def validate_bbox(src_bbox):
@@ -39,7 +33,7 @@ def validate_bbox(src_bbox):
 
 def check_wms_map_image(fn):
     status = None
-    print("Checking image: ", fn)
+    logging.info('Checking image: %s', fn)
 
     if os.path.exists(fn):
         if os.path.getsize(fn) > 0:
@@ -48,16 +42,12 @@ def check_wms_map_image(fn):
                     im_colors_list = im.getcolors()
                 except TypeError as ex:
                     logging.error("Exception raised when checking image:", exc_info=True)
-                    print("Exception raised when checking image:")
-                    print('\t', ex)
                     status = "Invalid"
                 else:
                     try:
                         number_of_cols_in_img = len(im_colors_list)
                     except TypeError as ex:
                         logging.error("Exception raised when checking image:", exc_info=True)
-                        print("Exception raised when checking image:")
-                        print('\t', ex)
                         status = "Invalid"
                     else:
                         if number_of_cols_in_img > 1:
@@ -70,7 +60,7 @@ def check_wms_map_image(fn):
     else:
         status = "Image does not exist"
 
-    print("Image Status is: ", status)
+    logging.info('Image Status is: %s', status)
     return status
 
 
@@ -96,33 +86,25 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
     image_status = None
     out_image_fname = None
 
-    print('WMS is: ', ogc_url)
+    logging.info('Looking for %s in WMS: %s', record_title, ogc_url)
 
     try:
         wms = WebMapService(ogc_url, timeout=wms_timeout)
     except owslib.util.ServiceException as owslib_srv_ex:
         logging.error("Exception raised when instantiating WMS:", exc_info=True)
-        print("Exception raised when instantiating WMS")
-        print('\t', owslib_srv_ex)
         wms_get_cap_error = True
     except requests.exceptions.RequestException as requests_ex:
         logging.error("Exception raised when instantiating WMS:", exc_info=True)
-        print("Exception raised when instantiating WMS:")
-        print('\t', requests_ex)
         wms_get_cap_error = True
     except AttributeError as attrib_error_ex:
         logging.error("Exception raised when instantiating WMS:", exc_info=True)
-        print("Exception raised when instantiating WMS")
-        print('\t', attrib_error_ex)
         wms_get_cap_error = True
     except xml.etree.ElementTree.ParseError as etree_ex:
         logging.error("Exception raised when instantiating WMS:", exc_info=True)
-        print("Exception raised when instantiating WMS")
-        print('\t', etree_ex)
         wms_get_cap_error = True
     else:
-        print('WMS WAS instantiated OK')
-        print('Searching WMS layer that matches record_title: ', record_title)
+        logging.info('WMS WAS instantiated OK')
+        logging.info('Searching WMS layer that matches record_title: %s', record_title)
         min_l_dist = 1000000
         matched_layer = None
         for wms_layer in wms.contents:
@@ -135,12 +117,12 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
                 matched_layer = wms_layer
 
         if matched_layer is not None:
-            print("Found matching WMS layer: ", matched_layer)
+            logging.info('Found matching WMS layer: %s', matched_layer)
             wms_layer_for_record = matched_layer
             wms_layer_bbox = wms[wms_layer_for_record].boundingBox
             bbox_srs = wms_layer_bbox[4]
 
-            print("Attempting to make WMS GetMap request based on layer BBox")
+            logging.info('Attempting to make WMS GetMap request based on layer BBox')
             if bbox_srs != '':
                 match_dist = min_l_dist
                 made_get_map_req = True
@@ -154,17 +136,13 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
                         )
                 except owslib.util.ServiceException as owslib_srv_ex2:
                     logging.error("Exception raised when making WMS GetMap Request:", exc_info=True)
-                    print("Exception raised when making WMS GetMap Request:")
-                    print('\t', owslib_srv_ex2)
                     wms_get_map_error = True
                 except requests.exceptions.RequestException as requests_ex:
                     logging.error("Exception raised when making WMS GetMap Request:", exc_info=True)
-                    print("Exception raised when making WMS GetMap Request:")
-                    print('\t', requests_ex)
                     wms_get_map_error = True
                 else:
-                    print("GetMap request made OK")
-                    print("Writing map to temp image")
+                    logging.info('GetMap request made OK')
+                    logging.info('Writing map to temp image')
                     out_image_fname = os.path.join(
                         '/home/james/geocrud/wms_getmaps',
                         "".join([str(uuid.uuid1().int), "_wms_map.png"])
@@ -172,7 +150,6 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
                     with open(out_image_fname, 'wb') as outpf:
                         outpf.write(img.read())
 
-                    print("Checking written image")
                     if os.path.exists(out_image_fname):
                         image_status = check_wms_map_image(out_image_fname)
 
@@ -211,7 +188,6 @@ def get_ogc_type(url):
     return ogc_type
 
 
-# TODO [1] add logging
 # TODO [2] just retrieve all WMSs rather than layers?
 # TODO [3] grab temporal and spatial elements
 def query_csw(params):
@@ -223,8 +199,6 @@ def query_csw(params):
         csw = CatalogueServiceWeb(csw_url)
     except (owslib.util.ServiceException, requests.exceptions.RequestException) as csw_ex:
         logging.error("Exception raised when instantiating CSW:", exc_info=True)
-        print("Exception raised when instantiating CSW")
-        print('\t', csw_ex)
     else:
         csw.getrecords2(startposition=start_pos)
 
@@ -293,17 +267,13 @@ def search_csw_for_ogc_endpoints(out_csv_fname, csw_url, limit_count=0, ogc_srv_
         csw = CatalogueServiceWeb(csw_url)
     except (owslib.util.ServiceException, requests.exceptions.RequestException) as csw_ex:
         logging.error("Exception raised when instantiating CSW:", exc_info=True)
-        print("Exception raised when instantiating CSW:")
-        print('\t', csw_ex)
     else:
         resultset_size = int(csw.constraints['MaxRecordDefault'].values[0])
-
-        print('CSW MaxRecordDefault:{}'.format(str(resultset_size)))
+        logging.info('CSW MaxRecordDefault: %s', str(resultset_size))
 
         csw.getrecords2(startposition=0)
         num_records = csw.results['matches']
-
-        print('CSW Total Number of Matching Records:{}'.format(str(num_records)))
+        logging.info('CSW Total Number of Matching Records: %s', str(num_records))
 
         limited = False
         if limit_count > 0:
@@ -311,7 +281,7 @@ def search_csw_for_ogc_endpoints(out_csv_fname, csw_url, limit_count=0, ogc_srv_
             if limit_count < num_records:
                 num_records = limit_count
 
-        print('num_records: {} (limited:{})'.format(str(num_records), limited))
+        logging.info('CSW Records to retrieve: %s', str(num_records))
 
         jobs = [[csw_url, i, ogc_srv_type] for i in range(0, num_records, resultset_size)]
 
@@ -343,6 +313,7 @@ def search_csw_for_ogc_endpoints(out_csv_fname, csw_url, limit_count=0, ogc_srv_
 
 
 def generate_report(csv_fname='/home/james/Desktop/wms_layers.csv'):
+    logging.info('Generating Report')
     context = []
     if os.path.exists(csv_fname):
         with open(csv_fname, 'r') as inpf:
@@ -364,6 +335,14 @@ def generate_report(csv_fname='/home/james/Desktop/wms_layers.csv'):
 
 
 def main():
+    logging.basicConfig(
+        filename='/home/james/Desktop/mapcatalog.log',
+        filemode='w',
+        format='%(asctime)s - %(name)s - %(levelname)s - %(threadName)s - %(message)s',
+        level=logging.DEBUG,
+        datefmt='%m/%d/%Y %I:%M:%S %p'
+    )
+    logging.info('Starting')
     csw_list = []
     with open('data/csw_catalogue.csv', 'r') as inpf:
         my_reader = csv.DictReader(inpf)
@@ -371,14 +350,17 @@ def main():
             csw_list.append(r['csw'])
 
     for csw_url in csw_list:
+        logging.info('CSW to search is: %s', csw_url)
         search_csw_for_ogc_endpoints(
             out_csv_fname='/home/james/Desktop/wms_layers.csv',
             csw_url=csw_url,
-            limit_count=100,
+            limit_count=5000,
             ogc_srv_type='WMS:GetCapabilties'
         )
 
     generate_report()
+
+    logging.info('Done')
 
 
 if __name__ == "__main__":
