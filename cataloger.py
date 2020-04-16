@@ -333,7 +333,9 @@ def generate_report(csv_fname='/home/james/Desktop/wms_layers.csv'):
     with open('/home/james/Desktop/wms_validation_report.html', 'w') as outpf:
         outpf.write(template.render(my_list=context))
 
-
+# TODO store stuff in a non SQL db and then check against this when hitting the CSW to
+#  avoid the need to do expensive WMS testing every time. Not sure how this would work
+#   though in checking for WMSs that no longer work
 def main():
     logging.basicConfig(
         filename='/home/james/Desktop/mapcatalog.log',
