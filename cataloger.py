@@ -39,6 +39,9 @@ def check_wms_map_image(fn):
         if os.path.getsize(fn) > 0:
             with Image.open(fn) as im:
                 try:
+                    # TODO change to im.getcolors(im.size[0] * im.size[1]) since getcolors
+                    #  returns None if the number of colors in the image is greater than the
+                    #   default parameter which is set to 256
                     im_colors_list = im.getcolors()
                 except TypeError as ex:
                     logging.error("Exception raised when checking image:", exc_info=True)
