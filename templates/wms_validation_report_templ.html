@@ -9,11 +9,11 @@
             border: 1px solid black;
         }
 
-        .wms_ok {
+        .ok {
             color: green;
         }
 
-        .wms_not_ok {
+        .not_ok {
             color: red;
         }
     </style>
@@ -21,23 +21,27 @@
 <body>
 <table>
     <tr>
-        <th>WMS URL</th>
-        <th>WMS Layer</th>
-        <th>WMS OK</th>
-        <th>GetMap Img</th>
-        <th>GetMap Img Check</th>
+        <th>CSW / WMS Metadata + Validation States</th>
+        <th>WMS GetMap Test</th>
     </tr>
     {% for n in my_list %}
     <tr>
-        <td>{{n[0]}}</td>
-        <td>{{n[1]}}</td>
-        {% if n[2] == 'False' %}
-            <td class="wms_not_ok">N</td>
-        {% else %}
-            <td class="wms_ok">Y</td>
-        {% endif %}
-        <td><img id="map_thumbnail" width=150 height=150 src="{{n[4]}}"></img></td>
-        <td>{{n[3]}}</td>
+        <td>
+            <ul>
+                <li>title: {{n[0]}}</li>
+                <li>subjects: {{n[1]}}</li>
+                <li>wms_url: {{n[2]}}</li>
+                <li>wms_layer_for_record: {{n[3]}}</li>
+                <li>only_1_choice: {{n[4]}}</li>
+                <li>match_dist: {{n[5]}}</li>
+                <li>bbox_srs: {{n[6]}}</li>
+                <li>wms_get_cap_error: {{n[7]}}</li>
+                <li>wms_get_map_error: {{n[8]}}</li>
+                <li>made_get_map_req: {{n[9]}}</li>
+                <li>image_status: {{n[10]}}</li>
+            </ul>
+        </td>
+        <td><img id="map_thumbnail" width=150 height=150 src="{{n[11]}}"></img></td>
     </tr>
     {% endfor %}
 </table>
