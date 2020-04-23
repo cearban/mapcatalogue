@@ -66,9 +66,6 @@ def check_wms_map_image(fn):
         if os.path.getsize(fn) > 0:
             with Image.open(fn) as im:
                 try:
-                    # TODO change to im.getcolors(im.size[0] * im.size[1]) since getcolors
-                    #  returns None if the number of colors in the image is greater than the
-                    #   default parameter which is set to 256
                     im_colors_list = im.getcolors(im.size[0] * im.size[1])
                 #except TypeError as ex:
                 except Exception as ex:
@@ -121,6 +118,7 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
 
     logging.info('Looking for %s in WMS: %s', record_title, ogc_url)
 
+    # TODO improve exception handling when instantiating WMS
     try:
         wms = WebMapService(ogc_url, timeout=wms_timeout)
     # except owslib.util.ServiceException as owslib_srv_ex:
@@ -165,6 +163,7 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
             if bbox_srs != '':
                 match_dist = min_l_dist
                 made_get_map_req = True
+                # TODO improve exception handling when making WMS GetMap request
                 try:
                     img = wms.getmap(
                         layers=[wms_layer_for_record],
