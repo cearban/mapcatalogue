@@ -93,7 +93,7 @@ def check_wms_map_image(fn):
     return status
 
 
-def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_timeout=5):
+def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_timeout=30):
     """
     given an ogc_url i.e. a WMS GetCapabilties, search the layers of that WMS
     for a given record_title and find the closest match based on Levenshtein distance
