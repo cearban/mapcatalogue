@@ -1,6 +1,8 @@
 import csv
 from concurrent.futures import ThreadPoolExecutor
 import os
+import glob
+import shutil
 import uuid
 import xml
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -12,6 +14,30 @@ from pyproj import Transformer
 from PIL import Image
 import requests
 import logging
+
+
+def tidy(path, skip_files=None):
+    """
+    purge all items in a folder
+
+    :param path: path to a folder
+    :param skip_files:
+    :return: None
+    """
+
+    if skip_files is None:
+        for f in glob.glob(os.path.join(path, "*")):
+            try:
+                os.remove(f)
+            except OSError:
+                shutil.rmtree(f)
+    else:
+        for f in glob.glob(os.path.join(path, "*")):
+            if f not in skip_files:
+                try:
+                    os.remove(f)
+                except OSError:
+                    shutil.rmtree(f)
 
 
 def validate_bbox(src_bbox):
@@ -42,14 +68,16 @@ def check_wms_map_image(fn):
                     # TODO change to im.getcolors(im.size[0] * im.size[1]) since getcolors
                     #  returns None if the number of colors in the image is greater than the
                     #   default parameter which is set to 256
-                    im_colors_list = im.getcolors()
-                except TypeError as ex:
+                    im_colors_list = im.getcolors(im.size[0] * im.size[1])
+                #except TypeError as ex:
+                except Exception as ex:
                     logging.error("Exception raised when checking image:", exc_info=True)
                     status = "Invalid"
                 else:
                     try:
                         number_of_cols_in_img = len(im_colors_list)
-                    except TypeError as ex:
+                    #except TypeError as ex:
+                    except Exception as ex2:
                         logging.error("Exception raised when checking image:", exc_info=True)
                         status = "Invalid"
                     else:
@@ -67,13 +95,14 @@ def check_wms_map_image(fn):
     return status
 
 
-def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
+def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_timeout=5):
     """
     given an ogc_url i.e. a WMS GetCapabilties, search the layers of that WMS
     for a given record_title and find the closest match based on Levenshtein distance
 
     :param ogc_url: an ogc url
     :param record_title: the layer we want to search for
+    :param out_path: where to write getmap images
     :param wms_timeout: how long to wait to retrieve from WMS
     :return:
     """
@@ -93,16 +122,22 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
 
     try:
         wms = WebMapService(ogc_url, timeout=wms_timeout)
-    except owslib.util.ServiceException as owslib_srv_ex:
-        logging.error("Exception raised when instantiating WMS:", exc_info=True)
-        wms_get_cap_error = True
-    except requests.exceptions.RequestException as requests_ex:
-        logging.error("Exception raised when instantiating WMS:", exc_info=True)
-        wms_get_cap_error = True
-    except AttributeError as attrib_error_ex:
-        logging.error("Exception raised when instantiating WMS:", exc_info=True)
-        wms_get_cap_error = True
-    except xml.etree.ElementTree.ParseError as etree_ex:
+    # except owslib.util.ServiceException as owslib_srv_ex:
+    #     logging.error("Exception raised when instantiating WMS:", exc_info=True)
+    #     wms_get_cap_error = True
+    # except requests.exceptions.RequestException as requests_ex:
+    #     logging.error("Exception raised when instantiating WMS:", exc_info=True)
+    #     wms_get_cap_error = True
+    # except AttributeError as attrib_error_ex:
+    #     logging.error("Exception raised when instantiating WMS:", exc_info=True)
+    #     wms_get_cap_error = True
+    # except ValueError as value_error_ex:
+    #     logging.error("Exception raised when instantiating WMS:", exc_info=True)
+    #     wms_get_cap_error = True
+    # except xml.etree.ElementTree.ParseError as etree_ex:
+    #     logging.error("Exception raised when instantiating WMS:", exc_info=True)
+    #     wms_get_cap_error = True
+    except Exception as ex_instaniate_wms:
         logging.error("Exception raised when instantiating WMS:", exc_info=True)
         wms_get_cap_error = True
     else:
@@ -137,17 +172,20 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
                         size=(400, 400),
                         format='image/png'
                         )
-                except owslib.util.ServiceException as owslib_srv_ex2:
-                    logging.error("Exception raised when making WMS GetMap Request:", exc_info=True)
-                    wms_get_map_error = True
-                except requests.exceptions.RequestException as requests_ex:
+                # except owslib.util.ServiceException as owslib_srv_ex2:
+                #     logging.error("Exception raised when making WMS GetMap Request:", exc_info=True)
+                #     wms_get_map_error = True
+                # except requests.exceptions.RequestException as requests_ex:
+                #     logging.error("Exception raised when making WMS GetMap Request:", exc_info=True)
+                #     wms_get_map_error = True
+                except Exception as ex_wms_getmap:
                     logging.error("Exception raised when making WMS GetMap Request:", exc_info=True)
                     wms_get_map_error = True
                 else:
                     logging.info('GetMap request made OK')
                     logging.info('Writing map to temp image')
                     out_image_fname = os.path.join(
-                        '/home/james/geocrud/wms_getmaps',
+                        out_path,
                         "".join([str(uuid.uuid1().int), "_wms_map.png"])
                     )
                     with open(out_image_fname, 'wb') as outpf:
@@ -155,6 +193,8 @@ def search_ogc_service_for_record_title(ogc_url, record_title, wms_timeout=5):
 
                     if os.path.exists(out_image_fname):
                         image_status = check_wms_map_image(out_image_fname)
+            else:
+                logging.error("bbox_srs IS EMPTY:")
 
     if num_layers == 1:
         only_1_choice = True
@@ -198,9 +238,11 @@ def query_csw(params):
     csw_url = params[0]
     start_pos = params[1]
     ogc_srv_type = params[2]
+    out_path = params[3]
     try:
         csw = CatalogueServiceWeb(csw_url)
-    except (owslib.util.ServiceException, requests.exceptions.RequestException) as csw_ex:
+    except Exception as csw_ex:
+    #except (owslib.util.ServiceException, requests.exceptions.RequestException) as csw_ex:
         logging.error("Exception raised when instantiating CSW:", exc_info=True)
     else:
         csw.getrecords2(startposition=start_pos)
@@ -233,7 +275,7 @@ def query_csw(params):
                         if ogc_url_type is not None:
                             if ogc_url_type == ogc_srv_type:
                                 # interogating WMS here
-                                res = search_ogc_service_for_record_title(url, title)
+                                res = search_ogc_service_for_record_title(url, title, out_path)
 
                                 wms_layer_for_record = res[0]
                                 if wms_layer_for_record is not None:
@@ -264,11 +306,12 @@ def query_csw(params):
     return out_records
 
 
-def search_csw_for_ogc_endpoints(out_csv_fname, csw_url, limit_count=0, ogc_srv_type='WMS:GetCapabilties'):
+def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type='WMS:GetCapabilties'):
     limit_count = limit_count
     try:
         csw = CatalogueServiceWeb(csw_url)
-    except (owslib.util.ServiceException, requests.exceptions.RequestException) as csw_ex:
+    except Exception as csw_ex:
+    #except (owslib.util.ServiceException, requests.exceptions.RequestException) as csw_ex:
         logging.error("Exception raised when instantiating CSW:", exc_info=True)
     else:
         resultset_size = int(csw.constraints['MaxRecordDefault'].values[0])
@@ -286,11 +329,11 @@ def search_csw_for_ogc_endpoints(out_csv_fname, csw_url, limit_count=0, ogc_srv_
 
         logging.info('CSW Records to retrieve: %s', str(num_records))
 
-        jobs = [[csw_url, i, ogc_srv_type] for i in range(0, num_records, resultset_size)]
+        jobs = [[csw_url, i, ogc_srv_type, out_path] for i in range(0, num_records, resultset_size)]
 
         pool = ThreadPoolExecutor(max_workers=10)
 
-        with open(out_csv_fname, 'w') as outpf:
+        with open(os.path.join(out_path, 'wms_layers.csv'), 'w') as outpf:
             my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
             out_fields = [
                 'title',  # 0
@@ -315,9 +358,10 @@ def search_csw_for_ogc_endpoints(out_csv_fname, csw_url, limit_count=0, ogc_srv_
                         my_writer.writerow(r)
 
 
-def generate_report(csv_fname='/home/james/Desktop/wms_layers.csv'):
+def generate_report(out_path):
     logging.info('Generating Report')
     context = []
+    csv_fname = os.path.join(out_path, 'wms_layers.csv')
     if os.path.exists(csv_fname):
         with open(csv_fname, 'r') as inpf:
             c = 1
@@ -333,7 +377,7 @@ def generate_report(csv_fname='/home/james/Desktop/wms_layers.csv'):
     )
     template = env.get_template('wms_validation_report_templ.html')
 
-    with open('/home/james/Desktop/wms_validation_report.html', 'w') as outpf:
+    with open(os.path.join(out_path, 'wms_validation_report.html'), 'w') as outpf:
         outpf.write(template.render(my_list=context))
 
 
@@ -341,13 +385,17 @@ def generate_report(csv_fname='/home/james/Desktop/wms_layers.csv'):
 #  avoid the need to do expensive WMS testing every time. Not sure how this would work
 #   though in checking for WMSs that no longer work
 def main():
+    out_path = '/home/james/geocrud/wms_cataloger_out'
+    tidy(out_path)
+
     logging.basicConfig(
-        filename='/home/james/Desktop/mapcatalog.log',
+        filename=os.path.join(out_path, 'mapcatalog.log'),
         filemode='w',
-        format='%(asctime)s - %(name)s - %(levelname)s - %(threadName)s - %(message)s',
+        format='%(asctime)s - %(name)s - %(levelname)s - %(threadName)s - %(funcName)s - %(lineno)d - %(message)s',
         level=logging.DEBUG,
         datefmt='%m/%d/%Y %I:%M:%S %p'
     )
+
     logging.info('Starting')
     csw_list = []
     with open('data/csw_catalogue.csv', 'r') as inpf:
@@ -358,13 +406,13 @@ def main():
     for csw_url in csw_list:
         logging.info('CSW to search is: %s', csw_url)
         search_csw_for_ogc_endpoints(
-            out_csv_fname='/home/james/Desktop/wms_layers.csv',
+            out_path=out_path,
             csw_url=csw_url,
-            limit_count=5000,
+            limit_count=500,
             ogc_srv_type='WMS:GetCapabilties'
         )
 
-    generate_report()
+    generate_report(out_path)
 
     logging.info('Done')
 
