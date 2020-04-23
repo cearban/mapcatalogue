@@ -28,6 +28,7 @@
     <tr>
         <td>
             <ul>
+                <li>{{loop.index}}</li>
                 <li>title: {{n[0]}}</li>
                 <li>subjects: {{n[1]}}</li>
                 <li>wms_url: {{n[2]}}</li>
@@ -35,9 +36,21 @@
                 <li>only_1_choice: {{n[4]}}</li>
                 <li>match_dist: {{n[5]}}</li>
                 <li>bbox_srs: {{n[6]}}</li>
-                <li>wms_get_cap_error: {{n[7]}}</li>
-                <li>wms_get_map_error: {{n[8]}}</li>
-                <li>made_get_map_req: {{n[9]}}</li>
+                {% if n[7] == 'True'%}
+                <li>wms_get_cap_error: <span class="not_ok">Yes</span></li>
+                {% else %}
+                <li>wms_get_cap_error: <span class="ok">No</span></li>
+                {% endif %}
+                {% if n[8] == 'True' %}
+                <li>wms_get_map_error: <span class="not_ok">Yes</span></li>
+                {% else %}
+                <li>wms_get_map_error: <span class="ok">No</span></li>
+                {% endif %}
+                {% if n[9] == 'True'%}
+                <li>wms_get_map_req: <span class="ok">Yes</span></li>
+                {% else %}
+                <li>wms_get_map_req: <span class="not_ok">No</span></li>
+                {% endif %}
                 <li>image_status: {{n[10]}}</li>
             </ul>
         </td>
