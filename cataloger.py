@@ -288,6 +288,7 @@ def query_csw(params):
                                     image_status = res[8]
                                     out_image_fname = res[9]
                                     out_records.append([
+                                        csw_url,
                                         title,
                                         subjects,
                                         url,
@@ -335,9 +336,10 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
         with open(os.path.join(out_path, 'wms_layers.csv'), 'w') as outpf:
             my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
             out_fields = [
+                'csw_url',
                 'title',  # 0
                 'subjects',  # 1
-                'url',  # 2
+                'wms_url',  # 2
                 'wms_layer_for_record',  # 3
                 'only_1_choice',  # 4
                 'match_dist',  # 5
