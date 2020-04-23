@@ -14,6 +14,7 @@ from pyproj import Transformer
 from PIL import Image
 import requests
 import logging
+import click
 
 
 def tidy(path, skip_files=None):
@@ -231,8 +232,7 @@ def get_ogc_type(url):
     return ogc_type
 
 
-# TODO [2] just retrieve all WMSs rather than layers?
-# TODO [3] grab temporal and spatial elements
+# TODO need to grab record temporal information
 def query_csw(params):
     out_records = []
     csw_url = params[0]
@@ -381,13 +381,24 @@ def generate_report(out_path):
         outpf.write(template.render(my_list=context))
 
 
-# TODO store stuff in a non SQL db and then check against this when hitting the CSW to
-#  avoid the need to do expensive WMS testing every time. Not sure how this would work
-#   though in checking for WMSs that no longer work
-def main():
-    out_path = '/home/james/geocrud/wms_cataloger_out'
+@click.command()
+@click.argument('out_path', type=click.Path(exists=True))
+@click.option('-n', '--max_records_to_search', default=0, type=int)
+def build_wms_catalog(out_path, max_records_to_search):
+    """
+    i.e
+    python cataloger.py /home/james/geocrud/wms_cataloger_out -max_records_to_search 500
+    python cataloger.py /home/james/geocrud/wms_cataloger_out -n 500
+
+    :param out_path: where output is written i.e. '/home/james/geocrud/wms_cataloger_out'
+    :param max_records_to_search: limit the number of records in each CSW to be searched i.e. 500
+    :return:
+    """
+
+    # first purge all files currently in the out_path folder so we start from afresh
     tidy(out_path)
 
+    # setup logging
     logging.basicConfig(
         filename=os.path.join(out_path, 'mapcatalog.log'),
         filemode='w',
@@ -397,26 +408,30 @@ def main():
     )
 
     logging.info('Starting')
+
+    # get list of CSWs to be searched
     csw_list = []
     with open('data/csw_catalogue.csv', 'r') as inpf:
         my_reader = csv.DictReader(inpf)
         for r in my_reader:
             csw_list.append(r['csw'])
 
+    # go through each CSW in turn and search for records that have associated OGC endpoints
     for csw_url in csw_list:
         logging.info('CSW to search is: %s', csw_url)
         search_csw_for_ogc_endpoints(
             out_path=out_path,
             csw_url=csw_url,
-            limit_count=500,
+            limit_count=max_records_to_search,
             ogc_srv_type='WMS:GetCapabilties'
         )
 
+    # generate an html report with embedded thumbnails of WMS GetMap request results
     generate_report(out_path)
 
     logging.info('Done')
 
 
 if __name__ == "__main__":
-    main()
+    build_wms_catalog()
 
