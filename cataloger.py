@@ -119,6 +119,7 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
     logging.info('Looking for %s in WMS: %s', record_title, ogc_url)
 
     # TODO improve exception handling when instantiating WMS
+    #  what is the exception?; why is it being raised; can/what can be done to prevent it
     try:
         wms = WebMapService(ogc_url, timeout=wms_timeout)
     # except owslib.util.ServiceException as owslib_srv_ex:
@@ -159,11 +160,14 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
             wms_layer_bbox = wms[wms_layer_for_record].boundingBox
             bbox_srs = wms_layer_bbox[4]
 
+            # TODO - use wms[wms_layer_for_record].boundingBoxWGS84 if wms[wms_layer_for_record].boundingBox empty?
+
             logging.info('Attempting to make WMS GetMap request based on layer BBox')
             if bbox_srs != '':
                 match_dist = min_l_dist
                 made_get_map_req = True
                 # TODO improve exception handling when making WMS GetMap request
+                #  what is the exception?; why is it being raised; can/what can be done to prevent it
                 try:
                     img = wms.getmap(
                         layers=[wms_layer_for_record],
@@ -232,6 +236,7 @@ def get_ogc_type(url):
 
 
 # TODO need to grab record temporal information
+# TODO modify returned out_records to include details of records which are OGC but none-WMS or non-OGC
 def query_csw(params):
     out_records = []
     csw_url = params[0]
@@ -269,10 +274,12 @@ def query_csw(params):
                     for ref in references:
                         url = ref['url']
                         ogc_url_type = None
+                        logging.info('Found URL {} in record references'.format(url))
                         if url is not None:
                             ogc_url_type = get_ogc_type(url)
                         if ogc_url_type is not None:
                             if ogc_url_type == ogc_srv_type:
+                                logging.info('URL ogc_url_type is: {} SO searching for record title'.format(ogc_url_type))
                                 # interogating WMS here
                                 res = search_ogc_service_for_record_title(url, title, out_path)
 
@@ -302,6 +309,10 @@ def query_csw(params):
                                         image_status,
                                         out_image_fname
                                     ])
+                            else:
+                                logging.info('URL ogc_url_type is NONE-WMS OGC SERVICE: {} SO SKIPPING searching for record title'.format(ogc_url_type))
+                        else:
+                            logging.info('URL ogc_url_type is None i.e. NOT AN OGC SERVICE SO SKIPPING')
 
     return out_records
 
@@ -385,7 +396,8 @@ def generate_report(out_path):
 @click.command()
 @click.argument('out_path', type=click.Path(exists=True))
 @click.option('-n', '--max_records_to_search', default=0, type=int)
-def build_wms_catalog(out_path, max_records_to_search):
+@click.option('-ll', '--log_level', default='debug', type=str)
+def build_wms_catalog(out_path, max_records_to_search, log_level):
     """
     i.e
     python cataloger.py /home/james/geocrud/wms_cataloger_out -max_records_to_search 500
@@ -393,6 +405,7 @@ def build_wms_catalog(out_path, max_records_to_search):
 
     :param out_path: where output is written i.e. '/home/james/geocrud/wms_cataloger_out'
     :param max_records_to_search: limit the number of records in each CSW to be searched i.e. 500
+    :param log_level:
     :return:
     """
 
@@ -400,11 +413,17 @@ def build_wms_catalog(out_path, max_records_to_search):
     tidy(out_path)
 
     # setup logging
+    logging_level = None
+    if log_level == 'debug':
+        logging_level = logging.DEBUG
+    elif log_level == 'info':
+        logging_level = logging.INFO
+
     logging.basicConfig(
         filename=os.path.join(out_path, 'mapcatalog.log'),
         filemode='w',
         format='%(asctime)s - %(name)s - %(levelname)s - %(threadName)s - %(funcName)s - %(lineno)d - %(message)s',
-        level=logging.DEBUG,
+        level=logging_level,
         datefmt='%m/%d/%Y %I:%M:%S %p'
     )
 
