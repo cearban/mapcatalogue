@@ -160,7 +160,9 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
             wms_layer_bbox = wms[wms_layer_for_record].boundingBox
             bbox_srs = wms_layer_bbox[4]
 
-            # TODO - use wms[wms_layer_for_record].boundingBoxWGS84 if wms[wms_layer_for_record].boundingBox empty?
+            # TODO can we obtain scale hints for the layer. Can this be used to construct better bbox?
+            # TODO make obtaining of bounding box more robust i.e. where there are multiple
+            # TODO use wms[wms_layer_for_record].boundingBoxWGS84 if wms[wms_layer_for_record].boundingBox empty?
 
             logging.info('Attempting to make WMS GetMap request based on layer BBox')
             if bbox_srs != '':
@@ -235,8 +237,10 @@ def get_ogc_type(url):
     return ogc_type
 
 
-# TODO need to grab record temporal information
+# TODO need to grab record temporal information for filtering outputs down the line
+# TODO need to grab spatial information for filtering outputs down the line
 # TODO modify returned out_records to include details of records which are OGC but none-WMS or non-OGC
+# TODO modify/refactor to include ability to just return OGC service URLs, not try and find matching layer for record title
 def query_csw(params):
     out_records = []
     csw_url = params[0]
@@ -263,6 +267,7 @@ def query_csw(params):
 
                 # fetch / clean-up subjects
                 # convert the list of subjects to a string. Sometimes the list has a None, so filter these off
+                # TODO where do subjects come from?. How to CSW subjects differ from WMS keywords?
                 subjects = r.subjects
                 if subjects is not None:
                     subjects = ', '.join(list(filter(None, subjects)))
