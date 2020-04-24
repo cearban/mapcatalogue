@@ -237,8 +237,10 @@ def get_ogc_type(url):
     return ogc_type
 
 
-# TODO need to grab record temporal information for filtering outputs down the line
-# TODO need to grab spatial information for filtering outputs down the line
+# TODO (nice-to-have) need to grab record temporal information for filtering outputs down the line
+#  CSW record has temporal & modified elements
+# TODO (critical) need to grab spatial information for filtering outputs down the line
+#  CSW record itself has bbox & bbox_wgs84 (but not always). How does differ from WMS layer?
 # TODO modify returned out_records to include details of records which are OGC but none-WMS or non-OGC
 # TODO modify/refactor to include ability to just return OGC service URLs, not try and find matching layer for record title
 def query_csw(params):
@@ -321,7 +323,7 @@ def query_csw(params):
 
     return out_records
 
-
+# TODO modify the csv writer so it copes with hitting multiple CSWs
 def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type='WMS:GetCapabilties'):
     limit_count = limit_count
     try:
@@ -441,7 +443,8 @@ def build_wms_catalog(out_path, max_records_to_search, log_level):
         for r in my_reader:
             csw_list.append(r['csw'])
 
-    # go through each CSW in turn and search for records that have associated OGC endpoints
+
+    #go through each CSW in turn and search for records that have associated OGC endpoints
     for csw_url in csw_list:
         logging.info('CSW to search is: %s', csw_url)
         search_csw_for_ogc_endpoints(
