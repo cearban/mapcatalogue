@@ -253,15 +253,16 @@ def query_csw(params):
     out_records = []
     csw_url = params[0]
     start_pos = params[1]
-    ogc_srv_type = params[2]
-    out_path = params[3]
+    resultset_size = params[2]
+    ogc_srv_type = params[3]
+    out_path = params[4]
     try:
         csw = CatalogueServiceWeb(csw_url)
     except Exception as csw_ex:
     #except (owslib.util.ServiceException, requests.exceptions.RequestException) as csw_ex:
         logging.error("Exception raised when instantiating CSW:", exc_info=True)
     else:
-        csw.getrecords2(startposition=start_pos)
+        csw.getrecords2(startposition=start_pos, maxrecords=resultset_size)
 
         for rec in csw.records:
             r = None
@@ -352,10 +353,15 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
             limited = True
             if limit_count < num_records:
                 num_records = limit_count
+            if limit_count < resultset_size:
+                resultset_size = limit_count
 
         logging.info('CSW Records to retrieve: %s', str(num_records))
 
-        jobs = [[csw_url, i, ogc_srv_type, out_path] for i in range(0, num_records, resultset_size)]
+        # TODO improve the job setup esp wrt to handling cases where limit < CSW max resultset size
+        jobs = [[csw_url, i, resultset_size, ogc_srv_type, out_path] for i in range(0, num_records, resultset_size)]
+        for j in jobs:
+            print(j)
 
         pool = ThreadPoolExecutor(max_workers=10)
 
@@ -425,8 +431,7 @@ def build_wms_catalog(out_path, max_records_to_search, log_level):
     :param log_level:
     :return:
     """
-
-    # first purge all files currently in the out_path folder so we start from afresh
+    #first purge all files currently in the out_path folder so we start from afresh
     tidy(out_path)
 
     # setup logging
@@ -447,11 +452,15 @@ def build_wms_catalog(out_path, max_records_to_search, log_level):
     logging.info('Starting')
 
     # get list of CSWs to be searched
-    csw_list = []
-    with open('data/csw_catalogue.csv', 'r') as inpf:
-        my_reader = csv.DictReader(inpf)
-        for r in my_reader:
-            csw_list.append(r['csw'])
+    csw_list = [
+        'https://catalog.data.gov/csw?service=CSW&version=2.0.2&request=GetCapabilities'
+        #'https://ckan.publishing.service.gov.uk/csw?request=GetCapabilities&service=CSW&version=2.0.2'
+    ]
+
+    # with open('data/csw_catalogue.csv', 'r') as inpf:
+    #     my_reader = csv.DictReader(inpf)
+    #     for r in my_reader:
+    #         csw_list.append(r['csw'])
 
     # go through each CSW in turn and search for records that have associated OGC endpoints
     for csw_url in csw_list:
