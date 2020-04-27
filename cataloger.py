@@ -323,7 +323,7 @@ def query_csw(params):
 
     return out_records
 
-# TODO modify the csv writer so it copes with hitting multiple CSWs
+
 def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type='WMS:GetCapabilties'):
     limit_count = limit_count
     try:
@@ -351,7 +351,7 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
 
         pool = ThreadPoolExecutor(max_workers=10)
 
-        with open(os.path.join(out_path, 'wms_layers.csv'), 'w') as outpf:
+        with open(os.path.join(out_path, 'wms_layers.csv'), 'a') as outpf:
             my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
             out_fields = [
                 'csw_url',
