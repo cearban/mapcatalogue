@@ -106,8 +106,9 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
     """
     only_1_choice = False
     wms_layer_for_record = None
-    bbox = None
-    bbox_srs = None
+    wms_layer_bbox = None
+    wms_layer_bbox_srs = None
+    wms_layer_bbox_wgs84 = None
     match_dist = None
     wms_get_cap_error = False
     wms_get_map_error = False
@@ -146,6 +147,13 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
         min_l_dist = 1000000
         matched_layer = None
         for wms_layer in wms.contents:
+            # wms_layer = wms[wms_layer].id = wms[wms_layer].name (name is machine-to-machine readable)
+            # but different from wms[wms_layer].title (title is human readable)
+            # TODO - test if layer has title but no name since this indicates that we are dealing with a non-mappable category
+            # TODO - how does (human-readable) wms layer title compare to csw record title
+            wms_layer_bbox = wms[wms_layer].boundingBox
+            wms_layer_bbox_srs = wms_layer_bbox[4]
+            wms_layer_bbox_wgs84 = wms[wms_layer].boundingBoxWGS84
             num_layers += 1
             record_title_norm = record_title.lower()
             wms_layer_norm = wms_layer.lower()
@@ -157,15 +165,16 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
         if matched_layer is not None:
             logging.info('Found matching WMS layer: %s', matched_layer)
             wms_layer_for_record = matched_layer
-            wms_layer_bbox = wms[wms_layer_for_record].boundingBox
-            bbox_srs = wms_layer_bbox[4]
 
             # TODO can we obtain scale hints for the layer. Can this be used to construct better bbox?
+            #  wms[wms_layer_for_record].scaleHint BUT not often populated
             # TODO make obtaining of bounding box more robust i.e. where there are multiple
             # TODO use wms[wms_layer_for_record].boundingBoxWGS84 if wms[wms_layer_for_record].boundingBox empty?
+            #  1 and only 1 boundingBoxWGS84 is always provided
+            #   1 or more boundingBox is provided and layer is guaranteed to support requests in SRS of this boundingBox
 
             logging.info('Attempting to make WMS GetMap request based on layer BBox')
-            if bbox_srs != '':
+            if wms_layer_bbox_srs != '':
                 match_dist = min_l_dist
                 made_get_map_req = True
                 # TODO improve exception handling when making WMS GetMap request
@@ -173,7 +182,7 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
                 try:
                     img = wms.getmap(
                         layers=[wms_layer_for_record],
-                        srs=bbox_srs,
+                        srs=wms_layer_bbox_srs,
                         bbox=wms_layer_bbox[:4],
                         size=(400, 400),
                         format='image/png'
@@ -205,7 +214,8 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
     if num_layers == 1:
         only_1_choice = True
 
-    return [wms_layer_for_record, bbox, bbox_srs, match_dist, only_1_choice, wms_get_cap_error, wms_get_map_error, made_get_map_req, image_status, out_image_fname]
+    # TODO return a named tuple matched_ogc_layer?
+    return [wms_layer_for_record, wms_layer_bbox, wms_layer_bbox_srs, wms_layer_bbox_wgs84, match_dist, only_1_choice, wms_get_cap_error, wms_get_map_error, made_get_map_req, image_status, out_image_fname]
 
 
 def get_ogc_type(url):
@@ -294,13 +304,14 @@ def query_csw(params):
                                 if wms_layer_for_record is not None:
                                     bbox = res[1]
                                     bbox_srs = res[2]
-                                    match_dist = res[3]
-                                    only_1_choice = res[4]
-                                    wms_get_cap_error = res[5]
-                                    wms_get_map_error = res[6]
-                                    made_get_map = res[7]
-                                    image_status = res[8]
-                                    out_image_fname = res[9]
+                                    bbox_wgs84 = res[3]
+                                    match_dist = res[4]
+                                    only_1_choice = res[5]
+                                    wms_get_cap_error = res[6]
+                                    wms_get_map_error = res[7]
+                                    made_get_map = res[8]
+                                    image_status = res[9]
+                                    out_image_fname = res[10]
                                     out_records.append([
                                         csw_url,
                                         title,
@@ -309,7 +320,9 @@ def query_csw(params):
                                         wms_layer_for_record,
                                         only_1_choice,
                                         match_dist,
+                                        bbox,
                                         bbox_srs,
+                                        bbox_wgs84,
                                         wms_get_cap_error,
                                         wms_get_map_error,
                                         made_get_map,
@@ -354,19 +367,21 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
         with open(os.path.join(out_path, 'wms_layers.csv'), 'a') as outpf:
             my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
             out_fields = [
-                'csw_url',
-                'title',  # 0
-                'subjects',  # 1
-                'wms_url',  # 2
-                'wms_layer_for_record',  # 3
-                'only_1_choice',  # 4
-                'match_dist',  # 5
-                'bbox_srs',  # 6
-                'wms_get_cap_error',  # 7
-                'wms_get_map_error',  # 8
-                'made_get_map_req',  # 9
-                'image_status',  # 10
-                'out_image_fname'  # 11
+                'csw_url',  # 0
+                'title',  # 1
+                'subjects',  # 2
+                'wms_url',  # 3
+                'wms_layer_for_record',  # 4
+                'only_1_choice',  # 5
+                'match_dist',  # 6
+                'bbox', # 7
+                'bbox_srs',  # 8
+                'bbox_wgs84', # 9
+                'wms_get_cap_error',  # 10
+                'wms_get_map_error',  # 11
+                'made_get_map_req',  # 12
+                'image_status',  # 13
+                'out_image_fname'  # 14
             ]
             my_writer.writerow(out_fields)
 
