@@ -360,8 +360,6 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
 
         # TODO improve the job setup esp wrt to handling cases where limit < CSW max resultset size
         jobs = [[csw_url, i, resultset_size, ogc_srv_type, out_path] for i in range(0, num_records, resultset_size)]
-        for j in jobs:
-            print(j)
 
         pool = ThreadPoolExecutor(max_workers=10)
 
@@ -417,15 +415,16 @@ def generate_report(out_path):
 
 
 @click.command()
+@click.argument('csw_url', type=str)
 @click.argument('out_path', type=click.Path(exists=True))
 @click.option('-n', '--max_records_to_search', default=0, type=int)
 @click.option('-ll', '--log_level', default='debug', type=str)
-def build_wms_catalog(out_path, max_records_to_search, log_level):
+def build_wms_catalog(csw_url, out_path, max_records_to_search, log_level):
     """
     i.e
     python cataloger.py /home/james/geocrud/wms_cataloger_out -max_records_to_search 500
     python cataloger.py /home/james/geocrud/wms_cataloger_out -n 500
-
+    :param out_path: CSW to retrieve records from
     :param out_path: where output is written i.e. '/home/james/geocrud/wms_cataloger_out'
     :param max_records_to_search: limit the number of records in each CSW to be searched i.e. 500
     :param log_level:
@@ -451,10 +450,8 @@ def build_wms_catalog(out_path, max_records_to_search, log_level):
 
     logging.info('Starting')
 
-    # get list of CSWs to be searched
     csw_list = [
-        'https://catalog.data.gov/csw?service=CSW&version=2.0.2&request=GetCapabilities'
-        #'https://ckan.publishing.service.gov.uk/csw?request=GetCapabilities&service=CSW&version=2.0.2'
+        csw_url
     ]
 
     # with open('data/csw_catalogue.csv', 'r') as inpf:
