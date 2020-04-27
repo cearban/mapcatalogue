@@ -146,13 +146,19 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
         logging.info('Searching WMS layer that matches record_title: %s', record_title)
         min_l_dist = 1000000
         matched_layer = None
+        # TODO assumption is that wms_layer is WMS layer <Name> elements i.e. text string for
+        #  machine-to-machine communication. As different from WMS layer <Title> element which
+        #   is a text human reading. <Title> is mandatory. If layer has a <Title> only this
+        #    indicates layer is just a category which should not be mapped. But should we test
+        #     for this situation?. And what about cases of grouped layers?
+        #      in owslib have:
+        #       wms_layer = wms[wms_layer].id = wms[wms_layer].name <Name>
+        #        wms[wms_layer].id <Title>
         for wms_layer in wms.contents:
-            # wms_layer = wms[wms_layer].id = wms[wms_layer].name (name is machine-to-machine readable)
-            # but different from wms[wms_layer].title (title is human readable)
-            # TODO - test if layer has title but no name since this indicates that we are dealing with a non-mappable category
-            # TODO - how does (human-readable) wms layer title compare to csw record title
+            # grab wms <BoundingBox> for the layer, this is 5 item tuple, srs is last item
             wms_layer_bbox = wms[wms_layer].boundingBox
             wms_layer_bbox_srs = wms_layer_bbox[4]
+            # grab wms <Ex_GeographicBoundingBox> for the layer, this is 4 item tuple, srs implicit
             wms_layer_bbox_wgs84 = wms[wms_layer].boundingBoxWGS84
             num_layers += 1
             record_title_norm = record_title.lower()
@@ -165,16 +171,12 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
         if matched_layer is not None:
             logging.info('Found matching WMS layer: %s', matched_layer)
             wms_layer_for_record = matched_layer
-
             # TODO can we obtain scale hints for the layer. Can this be used to construct better bbox?
             #  wms[wms_layer_for_record].scaleHint BUT not often populated
-            # TODO make obtaining of bounding box more robust i.e. where there are multiple
-            # TODO use wms[wms_layer_for_record].boundingBoxWGS84 if wms[wms_layer_for_record].boundingBox empty?
-            #  1 and only 1 boundingBoxWGS84 is always provided
-            #   1 or more boundingBox is provided and layer is guaranteed to support requests in SRS of this boundingBox
 
             logging.info('Attempting to make WMS GetMap request based on layer BBox')
             if wms_layer_bbox_srs != '':
+                # TODO why are there cases where bbox srs is empty?
                 match_dist = min_l_dist
                 made_get_map_req = True
                 # TODO improve exception handling when making WMS GetMap request
@@ -214,7 +216,6 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
     if num_layers == 1:
         only_1_choice = True
 
-    # TODO return a named tuple matched_ogc_layer?
     return [wms_layer_for_record, wms_layer_bbox, wms_layer_bbox_srs, wms_layer_bbox_wgs84, match_dist, only_1_choice, wms_get_cap_error, wms_get_map_error, made_get_map_req, image_status, out_image_fname]
 
 
@@ -247,12 +248,7 @@ def get_ogc_type(url):
     return ogc_type
 
 
-# TODO (nice-to-have) need to grab record temporal information for filtering outputs down the line
-#  CSW record has temporal & modified elements
-# TODO (critical) need to grab spatial information for filtering outputs down the line
-#  CSW record itself has bbox & bbox_wgs84 (but not always). How does differ from WMS layer?
-# TODO modify returned out_records to include details of records which are OGC but none-WMS or non-OGC
-# TODO modify/refactor to include ability to just return OGC service URLs, not try and find matching layer for record title
+# TODO if possible fetch temporal elements from CSW records
 def query_csw(params):
     out_records = []
     csw_url = params[0]
@@ -279,7 +275,6 @@ def query_csw(params):
 
                 # fetch / clean-up subjects
                 # convert the list of subjects to a string. Sometimes the list has a None, so filter these off
-                # TODO where do subjects come from?. How to CSW subjects differ from WMS keywords?
                 subjects = r.subjects
                 if subjects is not None:
                     subjects = ', '.join(list(filter(None, subjects)))
@@ -458,8 +453,7 @@ def build_wms_catalog(out_path, max_records_to_search, log_level):
         for r in my_reader:
             csw_list.append(r['csw'])
 
-
-    #go through each CSW in turn and search for records that have associated OGC endpoints
+    # go through each CSW in turn and search for records that have associated OGC endpoints
     for csw_url in csw_list:
         logging.info('CSW to search is: %s', csw_url)
         search_csw_for_ogc_endpoints(
