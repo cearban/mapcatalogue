@@ -15,6 +15,7 @@ from PIL import Image
 import requests
 import logging
 import click
+from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
 
 
 def tidy(path, skip_files=None):
@@ -397,7 +398,6 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
 
 
 def generate_report(out_path):
-    logging.info('Generating Report')
     context = []
     csv_fname = os.path.join(out_path, 'wms_layers.csv')
     if os.path.exists(csv_fname):
@@ -420,21 +420,46 @@ def generate_report(out_path):
 
 
 @click.command()
-@click.argument('csw_url', type=str)
-@click.argument('out_path', type=click.Path(exists=True))
-@click.option('-n', '--max_records_to_search', default=0, type=int)
-@click.option('-ll', '--log_level', default='debug', type=str)
-def build_wms_catalog(csw_url, out_path, max_records_to_search, log_level):
-    """
-    i.e
-    python cataloger.py /home/james/geocrud/wms_cataloger_out -max_records_to_search 500
-    python cataloger.py /home/james/geocrud/wms_cataloger_out -n 500
-    :param out_path: CSW to retrieve records from
-    :param out_path: where output is written i.e. '/home/james/geocrud/wms_cataloger_out'
-    :param max_records_to_search: limit the number of records in each CSW to be searched i.e. 500
-    :param log_level:
-    :return:
-    """
+@optgroup.group('CSW sources', cls=RequiredMutuallyExclusiveOptionGroup, help='Source of CSW(s) to be searched')
+@optgroup.option('-cswURL', 'csw_url', type=str, help='A single supplied CSW URL')
+@optgroup.option('-csvFile', 'csv_file', type=click.Path(exists=True), help='One or more CSW URLs listed in a CSV file')
+@click.option('-out_path', required=True, type=click.Path(exists=True), help='Path to write outputs to')
+@click.option('-search_limit', default=0, type=int, help='Limit the number of CSW records searched')
+@click.option('-log_level', default='debug', type=click.Choice(['debug', 'info']), help='Log Level')
+@click.option('-createReport', 'create_report', default='y', type=click.Choice(['y', 'n']), help='Generate an HTML report')
+def wms_layer_finder(**params):
+    """Search CSW(s) for WMS layers"""
+    csv_file = params['csv_file']
+    csw_url = params['csw_url']
+    out_path = params['out_path']
+    search_limit = params['search_limit']
+    log_level = params['log_level']
+    create_report = params['create_report']
+    csw_list = []
+
+    if log_level == 'debug':
+        print('csw_url: ', csw_url)
+        print('csv_file: ', csv_file)
+        print('out_path: ', out_path)
+        print('search_limit: ', search_limit, type(search_limit))
+        print('log_level: ', log_level)
+        print('create_report: ', create_report)
+
+    if csv_file is not None:
+        with open(csv_file, 'r') as input_file:
+            my_reader = csv.DictReader(input_file)
+            for r in my_reader:
+                csw_list.append(r['url'])
+        print('Found {} CSWs in specified CSV file'.format(str(len(csw_list))))
+    else:
+        print('Searching single CSW')
+        csw_list.append(csw_url)
+
+    if search_limit == 0:
+        print('All records in CSW(s) will be searched')
+    else:
+        print('Limiting search to {} records in each CSW'.format(str(search_limit)))
+
     #first purge all files currently in the out_path folder so we start from afresh
     tidy(out_path)
 
@@ -455,31 +480,27 @@ def build_wms_catalog(csw_url, out_path, max_records_to_search, log_level):
 
     logging.info('Starting')
 
-    csw_list = [
-        csw_url
-    ]
-
-    # with open('data/csw_catalogue.csv', 'r') as inpf:
-    #     my_reader = csv.DictReader(inpf)
-    #     for r in my_reader:
-    #         csw_list.append(r['csw'])
-
     # go through each CSW in turn and search for records that have associated OGC endpoints
     for csw_url in csw_list:
+        print('Searching CSW: ', csw_url)
         logging.info('CSW to search is: %s', csw_url)
         search_csw_for_ogc_endpoints(
             out_path=out_path,
             csw_url=csw_url,
-            limit_count=max_records_to_search,
+            limit_count=search_limit,
             ogc_srv_type='WMS:GetCapabilties'
         )
 
-    # generate an html report with embedded thumbnails of WMS GetMap request results
-    generate_report(out_path)
+    if create_report == 'y':
+        # generate HTML report
+        print('Creation of HTML report was requested. Generating...')
+        logging.info('Generating Report')
+        generate_report(out_path)
 
     logging.info('Done')
 
 
 if __name__ == "__main__":
-    build_wms_catalog()
+    wms_layer_finder()
+
 
