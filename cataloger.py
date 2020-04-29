@@ -262,6 +262,7 @@ def query_csw(params):
     #except (owslib.util.ServiceException, requests.exceptions.RequestException) as csw_ex:
         logging.error("Exception raised when instantiating CSW:", exc_info=True)
     else:
+        # TODO need to do exception handling for subsequent calls to getrecords2
         csw.getrecords2(startposition=start_pos, maxrecords=resultset_size)
 
         for rec in csw.records:
@@ -341,9 +342,12 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
     #except (owslib.util.ServiceException, requests.exceptions.RequestException) as csw_ex:
         logging.error("Exception raised when instantiating CSW:", exc_info=True)
     else:
+        # TODO stick with default resultset size of 10, because in some CSWs MaxRecordDefault
+        #  is set to a huge (hundreds or thousands) value
         resultset_size = int(csw.constraints['MaxRecordDefault'].values[0])
         logging.info('CSW MaxRecordDefault: %s', str(resultset_size))
 
+        # TODO need to do exception handling first time we getrecords2 from the CSW
         csw.getrecords2(startposition=0)
         num_records = csw.results['matches']
         logging.info('CSW Total Number of Matching Records: %s', str(num_records))
@@ -358,7 +362,8 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
 
         logging.info('CSW Records to retrieve: %s', str(num_records))
 
-        # TODO improve the job setup esp wrt to handling cases where limit < CSW max resultset size
+        # TODO clean-up:
+        #  jobs = [[csw_url, start_pos, resultset_size, ogc_srv_type, out_path] for start_pos in range(0, num_records, resultset_size)]
         jobs = [[csw_url, i, resultset_size, ogc_srv_type, out_path] for i in range(0, num_records, resultset_size)]
 
         pool = ThreadPoolExecutor(max_workers=10)
