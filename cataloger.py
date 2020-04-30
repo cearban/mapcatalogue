@@ -474,8 +474,7 @@ def wms_layer_finder(**params):
         filename=os.path.join(out_path, 'mapcatalog.log'),
         filemode='w',
         format='%(asctime)s - %(name)s - %(levelname)s - %(threadName)s - %(funcName)s - %(lineno)d - %(message)s',
-        level=logging_level,
-        datefmt='%m/%d/%Y %I:%M:%S %p'
+        level=logging_level
     )
 
     logging.info('Starting')
