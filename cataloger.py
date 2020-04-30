@@ -68,16 +68,14 @@ def check_wms_map_image(fn):
             with Image.open(fn) as im:
                 try:
                     im_colors_list = im.getcolors(im.size[0] * im.size[1])
-                #except TypeError as ex:
-                except Exception as ex:
-                    logging.error("Exception raised when checking image:", exc_info=True)
+                except Exception:
+                    logging.exception("Exception raised when checking image.")
                     status = "Invalid"
                 else:
                     try:
                         number_of_cols_in_img = len(im_colors_list)
-                    #except TypeError as ex:
-                    except Exception as ex2:
-                        logging.error("Exception raised when checking image:", exc_info=True)
+                    except Exception:
+                        logging.exception("Exception raised when checking image.")
                         status = "Invalid"
                     else:
                         if number_of_cols_in_img > 1:
@@ -124,23 +122,8 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
     #  what is the exception?; why is it being raised; can/what can be done to prevent it
     try:
         wms = WebMapService(ogc_url, timeout=wms_timeout)
-    # except owslib.util.ServiceException as owslib_srv_ex:
-    #     logging.error("Exception raised when instantiating WMS:", exc_info=True)
-    #     wms_get_cap_error = True
-    # except requests.exceptions.RequestException as requests_ex:
-    #     logging.error("Exception raised when instantiating WMS:", exc_info=True)
-    #     wms_get_cap_error = True
-    # except AttributeError as attrib_error_ex:
-    #     logging.error("Exception raised when instantiating WMS:", exc_info=True)
-    #     wms_get_cap_error = True
-    # except ValueError as value_error_ex:
-    #     logging.error("Exception raised when instantiating WMS:", exc_info=True)
-    #     wms_get_cap_error = True
-    # except xml.etree.ElementTree.ParseError as etree_ex:
-    #     logging.error("Exception raised when instantiating WMS:", exc_info=True)
-    #     wms_get_cap_error = True
-    except Exception as ex_instaniate_wms:
-        logging.error("Exception raised when instantiating WMS:", exc_info=True)
+    except Exception:
+        logging.exception("Exception raised when instantiating WMS.")
         wms_get_cap_error = True
     else:
         logging.info('WMS WAS instantiated OK')
@@ -190,14 +173,8 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
                         size=(400, 400),
                         format='image/png'
                         )
-                # except owslib.util.ServiceException as owslib_srv_ex2:
-                #     logging.error("Exception raised when making WMS GetMap Request:", exc_info=True)
-                #     wms_get_map_error = True
-                # except requests.exceptions.RequestException as requests_ex:
-                #     logging.error("Exception raised when making WMS GetMap Request:", exc_info=True)
-                #     wms_get_map_error = True
-                except Exception as ex_wms_getmap:
-                    logging.error("Exception raised when making WMS GetMap Request:", exc_info=True)
+                except Exception:
+                    logging.exception("Exception raised when making WMS GetMap Request.")
                     wms_get_map_error = True
                 else:
                     logging.info('GetMap request made OK')
@@ -259,78 +236,79 @@ def query_csw(params):
     out_path = params[4]
     try:
         csw = CatalogueServiceWeb(csw_url)
-    except Exception as csw_ex:
-    #except (owslib.util.ServiceException, requests.exceptions.RequestException) as csw_ex:
-        logging.error("Exception raised when instantiating CSW:", exc_info=True)
+    except Exception:
+        logging.exception("Exception raised when subsequentially instantiating CSW.")
     else:
-        # TODO need to do exception handling for subsequent calls to getrecords2
-        csw.getrecords2(startposition=start_pos, maxrecords=resultset_size)
+        try:
+            csw.getrecords2(startposition=start_pos, maxrecords=resultset_size)
+        except Exception:
+            logging.exception("Exception raised when retrieving subsequent set of records from CSW.")
+        else:
+            for rec in csw.records:
+                r = None
+                r = csw.records[rec]
 
-        for rec in csw.records:
-            r = None
-            r = csw.records[rec]
+                if r is not None:
+                    # fetch / clean-up title
+                    title = r.title
+                    if title is not None:
+                        title = title.replace("\n", "")
 
-            if r is not None:
-                # fetch / clean-up title
-                title = r.title
-                if title is not None:
-                    title = title.replace("\n", "")
+                    # fetch / clean-up subjects
+                    # convert the list of subjects to a string. Sometimes the list has a None, so filter these off
+                    subjects = r.subjects
+                    if subjects is not None:
+                        subjects = ', '.join(list(filter(None, subjects)))
 
-                # fetch / clean-up subjects
-                # convert the list of subjects to a string. Sometimes the list has a None, so filter these off
-                subjects = r.subjects
-                if subjects is not None:
-                    subjects = ', '.join(list(filter(None, subjects)))
+                    # fetch / clean-up references
+                    references = r.references
+                    if references is not None:
+                        ogc_urls = []
+                        for ref in references:
+                            url = ref['url']
+                            ogc_url_type = None
+                            logging.info('Found URL {} in record references'.format(url))
+                            if url is not None:
+                                ogc_url_type = get_ogc_type(url)
+                            if ogc_url_type is not None:
+                                if ogc_url_type == ogc_srv_type:
+                                    logging.info('URL ogc_url_type is: {} SO searching for record title'.format(ogc_url_type))
+                                    # interogating WMS here
+                                    res = search_ogc_service_for_record_title(url, title, out_path)
 
-                # fetch / clean-up references
-                references = r.references
-                if references is not None:
-                    ogc_urls = []
-                    for ref in references:
-                        url = ref['url']
-                        ogc_url_type = None
-                        logging.info('Found URL {} in record references'.format(url))
-                        if url is not None:
-                            ogc_url_type = get_ogc_type(url)
-                        if ogc_url_type is not None:
-                            if ogc_url_type == ogc_srv_type:
-                                logging.info('URL ogc_url_type is: {} SO searching for record title'.format(ogc_url_type))
-                                # interogating WMS here
-                                res = search_ogc_service_for_record_title(url, title, out_path)
-
-                                wms_layer_for_record = res[0]
-                                if wms_layer_for_record is not None:
-                                    bbox = res[1]
-                                    bbox_srs = res[2]
-                                    bbox_wgs84 = res[3]
-                                    match_dist = res[4]
-                                    only_1_choice = res[5]
-                                    wms_get_cap_error = res[6]
-                                    wms_get_map_error = res[7]
-                                    made_get_map = res[8]
-                                    image_status = res[9]
-                                    out_image_fname = res[10]
-                                    out_records.append([
-                                        csw_url,
-                                        title,
-                                        subjects,
-                                        url,
-                                        wms_layer_for_record,
-                                        only_1_choice,
-                                        match_dist,
-                                        bbox,
-                                        bbox_srs,
-                                        bbox_wgs84,
-                                        wms_get_cap_error,
-                                        wms_get_map_error,
-                                        made_get_map,
-                                        image_status,
-                                        out_image_fname
-                                    ])
+                                    wms_layer_for_record = res[0]
+                                    if wms_layer_for_record is not None:
+                                        bbox = res[1]
+                                        bbox_srs = res[2]
+                                        bbox_wgs84 = res[3]
+                                        match_dist = res[4]
+                                        only_1_choice = res[5]
+                                        wms_get_cap_error = res[6]
+                                        wms_get_map_error = res[7]
+                                        made_get_map = res[8]
+                                        image_status = res[9]
+                                        out_image_fname = res[10]
+                                        out_records.append([
+                                            csw_url,
+                                            title,
+                                            subjects,
+                                            url,
+                                            wms_layer_for_record,
+                                            only_1_choice,
+                                            match_dist,
+                                            bbox,
+                                            bbox_srs,
+                                            bbox_wgs84,
+                                            wms_get_cap_error,
+                                            wms_get_map_error,
+                                            made_get_map,
+                                            image_status,
+                                            out_image_fname
+                                        ])
+                                else:
+                                    logging.info('URL ogc_url_type is NONE-WMS OGC SERVICE: {} SO SKIPPING searching for record title'.format(ogc_url_type))
                             else:
-                                logging.info('URL ogc_url_type is NONE-WMS OGC SERVICE: {} SO SKIPPING searching for record title'.format(ogc_url_type))
-                        else:
-                            logging.info('URL ogc_url_type is None i.e. NOT AN OGC SERVICE SO SKIPPING')
+                                logging.info('URL ogc_url_type is None i.e. NOT AN OGC SERVICE SO SKIPPING')
 
     return out_records
 
@@ -339,9 +317,8 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
     limit_count = limit_count
     try:
         csw = CatalogueServiceWeb(csw_url)
-    except Exception as csw_ex:
-    #except (owslib.util.ServiceException, requests.exceptions.RequestException) as csw_ex:
-        logging.error("Exception raised when instantiating CSW:", exc_info=True)
+    except Exception:
+        logging.exception("Exception raised when initially instantiating CSW.")
     else:
         # MaxRecordDefault Constraint under OperationsMetadata indicates maximum number of
         # records that can be returned per query. It may be obtained using:
@@ -351,52 +328,55 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
         resultset_size = 10
         logging.info('NOT using MaxRecordDefault CSW Constraint. Using default of 10')
 
-        # TODO need to do exception handling first time we getrecords2 from the CSW
-        csw.getrecords2(startposition=0)
-        num_records = csw.results['matches']
-        logging.info('CSW Total Number of Matching Records: %s', str(num_records))
+        try:
+            csw.getrecords2(startposition=0)
+        except Exception:
+            logging.exception("Exception raised when retrieving initial records from CSW.")
+        else:
+            num_records = csw.results['matches']
+            logging.info('CSW Total Number of Matching Records: %s', str(num_records))
 
-        limited = False
-        if limit_count > 0:
-            limited = True
-            if limit_count < num_records:
-                num_records = limit_count
-            if limit_count < resultset_size:
-                resultset_size = limit_count
+            limited = False
+            if limit_count > 0:
+                limited = True
+                if limit_count < num_records:
+                    num_records = limit_count
+                if limit_count < resultset_size:
+                    resultset_size = limit_count
 
-        logging.info('CSW Records to retrieve: %s', str(num_records))
+            logging.info('CSW Records to retrieve: %s', str(num_records))
 
-        # create job list
-        jobs = [[csw_url, start_pos, resultset_size, ogc_srv_type, out_path] for start_pos in range(0, num_records, resultset_size)]
+            # create job list
+            jobs = [[csw_url, start_pos, resultset_size, ogc_srv_type, out_path] for start_pos in range(0, num_records, resultset_size)]
 
-        pool = ThreadPoolExecutor(max_workers=10)
+            pool = ThreadPoolExecutor(max_workers=10)
 
-        with open(os.path.join(out_path, 'wms_layers.csv'), 'a') as outpf:
-            my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
-            out_fields = [
-                'csw_url',  # 0
-                'title',  # 1
-                'subjects',  # 2
-                'wms_url',  # 3
-                'wms_layer_for_record',  # 4
-                'only_1_choice',  # 5
-                'match_dist',  # 6
-                'bbox', # 7
-                'bbox_srs',  # 8
-                'bbox_wgs84', # 9
-                'wms_get_cap_error',  # 10
-                'wms_get_map_error',  # 11
-                'made_get_map_req',  # 12
-                'image_status',  # 13
-                'out_image_fname'  # 14
-            ]
-            my_writer.writerow(out_fields)
+            with open(os.path.join(out_path, 'wms_layers.csv'), 'a') as outpf:
+                my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
+                out_fields = [
+                    'csw_url',  # 0
+                    'title',  # 1
+                    'subjects',  # 2
+                    'wms_url',  # 3
+                    'wms_layer_for_record',  # 4
+                    'only_1_choice',  # 5
+                    'match_dist',  # 6
+                    'bbox', # 7
+                    'bbox_srs',  # 8
+                    'bbox_wgs84', # 9
+                    'wms_get_cap_error',  # 10
+                    'wms_get_map_error',  # 11
+                    'made_get_map_req',  # 12
+                    'image_status',  # 13
+                    'out_image_fname'  # 14
+                ]
+                my_writer.writerow(out_fields)
 
-            for job in pool.map(query_csw, jobs):
-                out_recs = job
-                if len(out_recs) > 0:
-                    for r in out_recs:
-                        my_writer.writerow(r)
+                for job in pool.map(query_csw, jobs):
+                    out_recs = job
+                    if len(out_recs) > 0:
+                        for r in out_recs:
+                            my_writer.writerow(r)
 
 
 def generate_report(out_path):
