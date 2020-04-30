@@ -349,7 +349,7 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
         # however it is not always available. By default OWSLib getrecords2() has maxrecords=10
         # so just go with this.
         resultset_size = 10
-        logging.info('CSW MaxRecordDefault: %s', str(resultset_size))
+        logging.info('NOT using MaxRecordDefault CSW Constraint. Using default of 10')
 
         # TODO need to do exception handling first time we getrecords2 from the CSW
         csw.getrecords2(startposition=0)
@@ -366,9 +366,8 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
 
         logging.info('CSW Records to retrieve: %s', str(num_records))
 
-        # TODO clean-up:
-        #  jobs = [[csw_url, start_pos, resultset_size, ogc_srv_type, out_path] for start_pos in range(0, num_records, resultset_size)]
-        jobs = [[csw_url, i, resultset_size, ogc_srv_type, out_path] for i in range(0, num_records, resultset_size)]
+        # create job list
+        jobs = [[csw_url, start_pos, resultset_size, ogc_srv_type, out_path] for start_pos in range(0, num_records, resultset_size)]
 
         pool = ThreadPoolExecutor(max_workers=10)
 
