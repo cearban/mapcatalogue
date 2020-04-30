@@ -68,12 +68,14 @@ def check_wms_map_image(fn):
             with Image.open(fn) as im:
                 try:
                     im_colors_list = im.getcolors(im.size[0] * im.size[1])
+                # TODO improve caught exception specifity
                 except Exception:
                     logging.exception("Exception raised when checking image.")
                     status = "Invalid"
                 else:
                     try:
                         number_of_cols_in_img = len(im_colors_list)
+                    # TODO improve caught exception specifity
                     except Exception:
                         logging.exception("Exception raised when checking image.")
                         status = "Invalid"
@@ -118,10 +120,9 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
 
     logging.info('Looking for %s in WMS: %s', record_title, ogc_url)
 
-    # TODO improve exception handling when instantiating WMS
-    #  what is the exception?; why is it being raised; can/what can be done to prevent it
     try:
         wms = WebMapService(ogc_url, timeout=wms_timeout)
+    # TODO improve caught exception specifity
     except Exception:
         logging.exception("Exception raised when instantiating WMS.")
         wms_get_cap_error = True
@@ -173,6 +174,7 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
                         size=(400, 400),
                         format='image/png'
                         )
+                # TODO improve caught exception specifity
                 except Exception:
                     logging.exception("Exception raised when making WMS GetMap Request.")
                     wms_get_map_error = True
@@ -236,11 +238,13 @@ def query_csw(params):
     out_path = params[4]
     try:
         csw = CatalogueServiceWeb(csw_url)
+    # TODO improve caught exception specifity
     except Exception:
         logging.exception("Exception raised when subsequentially instantiating CSW.")
     else:
         try:
             csw.getrecords2(startposition=start_pos, maxrecords=resultset_size)
+        # TODO improve caught exception specifity
         except Exception:
             logging.exception("Exception raised when retrieving subsequent set of records from CSW.")
         else:
@@ -317,6 +321,7 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
     limit_count = limit_count
     try:
         csw = CatalogueServiceWeb(csw_url)
+    # TODO improve caught exception specifity
     except Exception:
         logging.exception("Exception raised when initially instantiating CSW.")
     else:
@@ -330,6 +335,7 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
 
         try:
             csw.getrecords2(startposition=0)
+        # TODO improve caught exception specifity
         except Exception:
             logging.exception("Exception raised when retrieving initial records from CSW.")
         else:
