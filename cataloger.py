@@ -343,9 +343,12 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
     #except (owslib.util.ServiceException, requests.exceptions.RequestException) as csw_ex:
         logging.error("Exception raised when instantiating CSW:", exc_info=True)
     else:
-        # TODO stick with default resultset size of 10, because in some CSWs MaxRecordDefault
-        #  is set to a huge (hundreds or thousands) value
-        resultset_size = int(csw.constraints['MaxRecordDefault'].values[0])
+        # MaxRecordDefault Constraint under OperationsMetadata indicates maximum number of
+        # records that can be returned per query. It may be obtained using:
+        # resultset_size = int(csw.constraints['MaxRecordDefault'].values[0])
+        # however it is not always available. By default OWSLib getrecords2() has maxrecords=10
+        # so just go with this.
+        resultset_size = 10
         logging.info('CSW MaxRecordDefault: %s', str(resultset_size))
 
         # TODO need to do exception handling first time we getrecords2 from the CSW
