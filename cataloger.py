@@ -377,6 +377,7 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
                     'out_image_fname'  # 14
                 ]
                 # TODO stop writing the header in wms_layers.csv multiple times
+                # TODO check that the output CSV is legit i.e. there are NOT trailing seperators
                 my_writer.writerow(out_fields)
 
                 for job in pool.map(query_csw, jobs):
