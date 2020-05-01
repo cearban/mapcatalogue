@@ -36,26 +36,28 @@
                 <li>wms_layer_for_record: {{n[4]}}</li>
                 <li>only_1_choice: {{n[5]}}</li>
                 <li>match_dist: {{n[6]}}</li>
-                <li>bbox_srs: {{n[7]}}</li>
-                {% if n[8] == 'True'%}
+                <li>bbox: {{n[7]}}</li>
+                <li>bbox_srs: {{n[8]}}</li>
+                <li>bbox_wgs84: {{n[9]}}</li>
+                {% if n[10] == 'True'%}
                 <li>wms_get_cap_error: <span class="not_ok">Yes</span></li>
                 {% else %}
                 <li>wms_get_cap_error: <span class="ok">No</span></li>
                 {% endif %}
-                {% if n[9] == 'True' %}
+                {% if n[11] == 'True' %}
                 <li>wms_get_map_error: <span class="not_ok">Yes</span></li>
                 {% else %}
                 <li>wms_get_map_error: <span class="ok">No</span></li>
                 {% endif %}
-                {% if n[10] == 'True'%}
+                {% if n[12] == 'True'%}
                 <li>wms_get_map_req: <span class="ok">Yes</span></li>
                 {% else %}
                 <li>wms_get_map_req: <span class="not_ok">No</span></li>
                 {% endif %}
-                <li>image_status: {{n[11]}}</li>
+                <li>image_status: {{n[13]}}</li>
             </ul>
         </td>
-        <td><img id="map_thumbnail" width=150 height=150 src="{{n[12]}}"></img></td>
+        <td><img id="map_thumbnail" width=150 height=150 src="{{n[14]}}"></img></td>
     </tr>
     {% endfor %}
 </table>
