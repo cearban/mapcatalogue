@@ -106,7 +106,8 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
     :return:
     """
     only_1_choice = False
-    wms_layer_for_record = None
+    wms_layer_for_record_name = None
+    wms_layer_for_record_title = None
     wms_layer_bbox = None
     wms_layer_bbox_srs = None
     wms_layer_bbox_wgs84 = None
@@ -130,32 +131,45 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
         logging.info('WMS WAS instantiated OK')
         logging.info('Searching WMS layer that matches record_title: %s', record_title)
         min_l_dist = 1000000
-        matched_layer = None
-        # TODO assumption is that wms_layer is WMS layer <Name> elements i.e. text string for
-        #  machine-to-machine communication. As different from WMS layer <Title> element which
-        #   is a text human reading. <Title> is mandatory. If layer has a <Title> only this
-        #    indicates layer is just a category which should not be mapped. But should we test
-        #     for this situation?. And what about cases of grouped layers?
-        #      in owslib have:
-        #       wms_layer = wms[wms_layer].id = wms[wms_layer].name <Name>
-        #        wms[wms_layer].id <Title>
+
+        matched_wms_layer_name = None
+        matched_wms_layer_title = None
+
         for wms_layer in wms.contents:
+            # wms layer <Name> is machine-to-machine layer identifier
+            wms_layer_name = wms[wms_layer].name
+            # Note: in owslib wms_layer key above is layer <Name>
+
+            # wms layer <Title> is human readable layer identifier
+            # <Title> is mandatory
+            wms_layer_title = wms[wms_layer].title
+
+            # NOTE:
+            # If layer has <Title> ONLY (no <Name>) then layer is a category title with sub-layers. It itself cannot be
+            #  requested in a GetMap request
+            # If layer has <Title> AND <Name> it is a "named layer" that can be requested in a GetMap request
+
             # grab wms <BoundingBox> for the layer, this is 5 item tuple, srs is last item
             wms_layer_bbox = wms[wms_layer].boundingBox
             wms_layer_bbox_srs = wms_layer_bbox[4]
+
             # grab wms <Ex_GeographicBoundingBox> for the layer, this is 4 item tuple, srs implicit
             wms_layer_bbox_wgs84 = wms[wms_layer].boundingBoxWGS84
             num_layers += 1
             record_title_norm = record_title.lower()
-            wms_layer_norm = wms_layer.lower()
-            l_dist = Lvn.distance(record_title_norm, wms_layer_norm)
+
+            # match on WMS layer title, <Title> is human readable str
+            wms_layer_title_norm = wms_layer_title.lower()
+            l_dist = Lvn.distance(record_title_norm, wms_layer_title_norm)
             if l_dist < min_l_dist:
                 min_l_dist = l_dist
-                matched_layer = wms_layer
+                matched_wms_layer_name = wms_layer_name
+                matched_wms_layer_title = wms_layer_title
 
-        if matched_layer is not None:
-            logging.info('Found matching WMS layer: %s', matched_layer)
-            wms_layer_for_record = matched_layer
+        if matched_wms_layer_name is not None:
+            logging.info('Found matching WMS layer Name / Title: %s / %s', matched_wms_layer_name, matched_wms_layer_title)
+            wms_layer_for_record_name = matched_wms_layer_name
+            wms_layer_for_record_title = matched_wms_layer_title
             # TODO can we obtain scale hints for the layer. Can this be used to construct better bbox?
             #  wms[wms_layer_for_record].scaleHint BUT not often populated
 
@@ -168,7 +182,7 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
                 #  what is the exception?; why is it being raised; can/what can be done to prevent it
                 try:
                     img = wms.getmap(
-                        layers=[wms_layer_for_record],
+                        layers=[wms_layer_for_record_name],
                         srs=wms_layer_bbox_srs,
                         bbox=wms_layer_bbox[:4],
                         size=(400, 400),
@@ -196,7 +210,7 @@ def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_tim
     if num_layers == 1:
         only_1_choice = True
 
-    return [wms_layer_for_record, wms_layer_bbox, wms_layer_bbox_srs, wms_layer_bbox_wgs84, match_dist, only_1_choice, wms_get_cap_error, wms_get_map_error, made_get_map_req, image_status, out_image_fname]
+    return [wms_layer_for_record_title, wms_layer_for_record_name, wms_layer_bbox, wms_layer_bbox_srs, wms_layer_bbox_wgs84, match_dist, only_1_choice, wms_get_cap_error, wms_get_map_error, made_get_map_req, image_status, out_image_fname]
 
 
 def get_ogc_type(url):
@@ -279,25 +293,26 @@ def query_csw(params):
                                     logging.info('URL ogc_url_type is: {} SO searching for record title'.format(ogc_url_type))
                                     # interogating WMS here
                                     res = search_ogc_service_for_record_title(url, title, out_path)
-
-                                    wms_layer_for_record = res[0]
-                                    if wms_layer_for_record is not None:
-                                        bbox = res[1]
-                                        bbox_srs = res[2]
-                                        bbox_wgs84 = res[3]
-                                        match_dist = res[4]
-                                        only_1_choice = res[5]
-                                        wms_get_cap_error = res[6]
-                                        wms_get_map_error = res[7]
-                                        made_get_map = res[8]
-                                        image_status = res[9]
-                                        out_image_fname = res[10]
+                                    wms_layer_for_record_title = res[0]
+                                    if wms_layer_for_record_title is not None:
+                                        wms_layer_for_record_name = res[1]
+                                        bbox = res[2]
+                                        bbox_srs = res[3]
+                                        bbox_wgs84 = res[4]
+                                        match_dist = res[5]
+                                        only_1_choice = res[6]
+                                        wms_get_cap_error = res[7]
+                                        wms_get_map_error = res[8]
+                                        made_get_map = res[9]
+                                        image_status = res[10]
+                                        out_image_fname = res[11]
                                         out_records.append([
                                             csw_url,
                                             title,
                                             subjects,
                                             url,
-                                            wms_layer_for_record,
+                                            wms_layer_for_record_title,
+                                            wms_layer_for_record_name,
                                             only_1_choice,
                                             match_dist,
                                             bbox,
@@ -365,20 +380,21 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
                 my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
                 out_fields = [
                     'csw_url',  # 0
-                    'title',  # 1
-                    'subjects',  # 2
+                    'csw_record_title',  # 1
+                    'csw_record_subjects',  # 2
                     'wms_url',  # 3
-                    'wms_layer_for_record',  # 4
-                    'only_1_choice',  # 5
-                    'match_dist',  # 6
-                    'bbox', # 7
-                    'bbox_srs',  # 8
-                    'bbox_wgs84', # 9
-                    'wms_get_cap_error',  # 10
-                    'wms_get_map_error',  # 11
-                    'made_get_map_req',  # 12
-                    'image_status',  # 13
-                    'out_image_fname'  # 14
+                    'wms_layer_for_record_title',  # 4
+                    'wms_layer_for_record_name',  # 5
+                    'only_1_choice',  # 6
+                    'match_dist',  # 7
+                    'bbox', # 8
+                    'bbox_srs',  # 9
+                    'bbox_wgs84', # 10
+                    'wms_get_cap_error',  # 11
+                    'wms_get_map_error',  # 12
+                    'made_get_map_req',  # 13
+                    'image_status',  # 14
+                    'out_image_fname'  # 15
                 ]
                 # TODO stop writing the header in wms_layers.csv multiple times
                 # TODO check that the output CSV is legit i.e. there are NOT trailing seperators
