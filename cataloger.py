@@ -309,6 +309,7 @@ def query_csw(params):
     resultset_size = params[2]
     ogc_srv_type = params[3]
     out_path = params[4]
+    restrict_wms_layers_to_match = params[5]
     try:
         csw = CatalogueServiceWeb(csw_url)
     # TODO improve caught exception specifity
@@ -351,7 +352,13 @@ def query_csw(params):
                                 if ogc_url_type == ogc_srv_type:
                                     logging.info('URL ogc_url_type is: {} SO searching for Matching WMS Layer'.format(ogc_url_type))
                                     # interogating WMS here
-                                    wms_layers = search_ogc_service_for_record_title(url, title, out_path)
+
+                                    if restrict_wms_layers_to_match:
+                                        # search ONLY for wms layer whose title matches CSW record title
+                                        wms_layers = search_ogc_service_for_record_title(url, title, out_path)
+                                    else:
+                                        # retrieve all wms layers
+                                        wms_layers = fetch_all_layers_from_ogc_service(ogc_url=url)
                                     if len(wms_layers) > 0:
                                         for wms_layer in wms_layers:
                                             wms_layer_for_record_title = wms_layer[0]
@@ -395,7 +402,7 @@ def query_csw(params):
     return out_records
 
 
-def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type='WMS:GetCapabilties'):
+def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type='WMS:GetCapabilties', restrict_wms_layers_to_match=True):
     limit_count = limit_count
     try:
         csw = CatalogueServiceWeb(csw_url)
@@ -431,7 +438,7 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
             logging.info('CSW Records to retrieve: %s', str(num_records))
 
             # create job list
-            jobs = [[csw_url, start_pos, resultset_size, ogc_srv_type, out_path] for start_pos in range(0, num_records, resultset_size)]
+            jobs = [[csw_url, start_pos, resultset_size, ogc_srv_type, out_path, restrict_wms_layers_to_match] for start_pos in range(0, num_records, resultset_size)]
 
             pool = ThreadPoolExecutor(max_workers=10)
 
@@ -561,7 +568,8 @@ def wms_layer_finder(**params):
             out_path=out_path,
             csw_url=csw_url,
             limit_count=search_limit,
-            ogc_srv_type='WMS:GetCapabilties'
+            ogc_srv_type='WMS:GetCapabilties',
+            restrict_wms_layers_to_match=False
         )
 
     if create_report == 'y':
