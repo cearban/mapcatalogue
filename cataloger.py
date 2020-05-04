@@ -94,6 +94,58 @@ def check_wms_map_image(fn):
     return status
 
 
+def fetch_all_layers_from_ogc_service(ogc_url, wms_timeout=30):
+    only_1_choice = None
+    match_dist = None
+    wms_get_cap_error = False
+    wms_get_map_error = False
+    made_get_map_req = False
+    image_status = None
+    out_image_fname = None
+    wms_layers = []  # list to hold wms layers that match the record title. Currently this will be max of 1
+
+    logging.info('Fetching all layers in WMS: %s', ogc_url)
+
+    try:
+        wms = WebMapService(ogc_url, timeout=wms_timeout)
+    # TODO improve caught exception specifity
+    except Exception:
+        logging.exception("Exception raised when instantiating WMS.")
+        wms_get_cap_error = True
+    else:
+        logging.info('WMS WAS instantiated OK')
+        logging.info('Number of named layers in WMS is: {0}. Retrieving details of all layers'.format(
+            len(list(wms.contents)))
+        )
+
+        for wms_layer in wms.contents:
+            # wms layer <Name> is machine-to-machine layer identifier
+            wms_layer_name = wms[wms_layer].name
+            # Note: in owslib wms_layer key above is layer <Name>
+
+            # wms layer <Title> is human readable layer identifier
+            # <Title> is mandatory
+            wms_layer_title = wms[wms_layer].title
+
+            # NOTE:
+            # If layer has <Title> ONLY (no <Name>) then layer is a category title with sub-layers. It itself cannot be
+            #  requested in a GetMap request
+            # If layer has <Title> AND <Name> it is a "named layer" that can be requested in a GetMap request
+
+            # grab wms <BoundingBox> for the layer, this is 5 item tuple, srs is last item
+            wms_layer_bbox = wms[wms_layer].boundingBox
+            wms_layer_bbox_srs = wms_layer_bbox[4]
+
+            # grab wms <Ex_GeographicBoundingBox> for the layer, this is 4 item tuple, srs implicit
+            wms_layer_bbox_wgs84 = wms[wms_layer].boundingBoxWGS84
+            wms_layers.append([wms_layer_title, wms_layer_name, wms_layer_bbox, wms_layer_bbox_srs,
+                               wms_layer_bbox_wgs84, match_dist, only_1_choice, wms_get_cap_error, wms_get_map_error,
+                               made_get_map_req, image_status, out_image_fname
+                               ])
+
+    return wms_layers
+
+
 def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_timeout=30):
     """
     given an ogc_url i.e. a WMS GetCapabilties, search the layers of that WMS
