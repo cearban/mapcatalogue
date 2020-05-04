@@ -357,6 +357,10 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
 
             pool = ThreadPoolExecutor(max_workers=10)
 
+            write_header = False
+            if not os.path.exists(os.path.join(out_path, 'wms_layers.csv')):
+                write_header = True
+
             with open(os.path.join(out_path, 'wms_layers.csv'), 'a') as outpf:
                 my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
                 out_fields = [
@@ -378,7 +382,8 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
                 ]
                 # TODO stop writing the header in wms_layers.csv multiple times
                 # TODO check that the output CSV is legit i.e. there are NOT trailing seperators
-                my_writer.writerow(out_fields)
+                if write_header:
+                    my_writer.writerow(out_fields)
 
                 for job in pool.map(query_csw, jobs):
                     out_recs = job
