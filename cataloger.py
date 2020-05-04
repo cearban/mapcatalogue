@@ -508,6 +508,9 @@ def generate_report(out_path):
 @click.option('-search_limit', default=0, type=int, help='Limit the number of CSW records searched')
 @click.option('-log_level', default='debug', type=click.Choice(['debug', 'info']), help='Log Level')
 @click.option('-createReport', 'create_report', default='y', type=click.Choice(['y', 'n']), help='Generate an HTML report')
+@click.option('--fetchAllWMSLayers', 'fetch_all_wms_layers', is_flag=True, help='Flag to fetch ALL WMS layers rather'
+                                                                                ' than only those whose title matches'
+                                                                                ' CSW record title')
 def wms_layer_finder(**params):
     """Search CSW(s) for WMS layers"""
     csv_file = params['csv_file']
@@ -516,6 +519,7 @@ def wms_layer_finder(**params):
     search_limit = params['search_limit']
     log_level = params['log_level']
     create_report = params['create_report']
+    fetch_all_wms_layers = params['fetch_all_wms_layers']
     csw_list = []
 
     if log_level == 'debug':
@@ -525,6 +529,7 @@ def wms_layer_finder(**params):
         print('search_limit: ', search_limit, type(search_limit))
         print('log_level: ', log_level)
         print('create_report: ', create_report)
+        print('fetch_all_wms_layers: ', fetch_all_wms_layers)
 
     if csv_file is not None:
         with open(csv_file, 'r') as input_file:
@@ -560,6 +565,11 @@ def wms_layer_finder(**params):
 
     logging.info('Starting')
 
+    if not fetch_all_wms_layers:
+        restrict_wms_layers_to_match = True
+    else:
+        restrict_wms_layers_to_match = False
+
     # go through each CSW in turn and search for records that have associated OGC endpoints
     for csw_url in csw_list:
         print('Searching CSW: ', csw_url)
@@ -569,7 +579,7 @@ def wms_layer_finder(**params):
             csw_url=csw_url,
             limit_count=search_limit,
             ogc_srv_type='WMS:GetCapabilties',
-            restrict_wms_layers_to_match=False
+            restrict_wms_layers_to_match=restrict_wms_layers_to_match
         )
 
     if create_report == 'y':
