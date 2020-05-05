@@ -250,7 +250,7 @@ def get_ogc_type(url):
 
 
 # TODO if possible fetch temporal elements from CSW records
-def query_csw(params):
+def retrieve_and_loop_through_csw_recordset(params):
     out_records = []
     csw_url = params[0]
     start_pos = params[1]
@@ -415,7 +415,7 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
                 if write_header:
                     my_writer.writerow(out_fields)
 
-                for job in pool.map(query_csw, jobs):
+                for job in pool.map(retrieve_and_loop_through_csw_recordset, jobs):
                     out_recs = job
                     if len(out_recs) > 0:
                         for r in out_recs:
