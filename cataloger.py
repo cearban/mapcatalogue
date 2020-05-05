@@ -144,7 +144,7 @@ def fetch_all_layers_from_ogc_service(ogc_url, wms_timeout=30):
     return wms_layers
 
 
-def search_ogc_service_for_record_title(ogc_url, record_title, out_path, wms_timeout=30):
+def search_wms_for_csw_record_title(ogc_url, record_title, out_path, wms_timeout=30):
     """
     given an ogc_url i.e. a WMS GetCapabilties, search the layers of that WMS
     for a given record_title and find the closest match based on Levenshtein distance
@@ -353,7 +353,7 @@ def query_csw(params):
 
                                     if restrict_wms_layers_to_match:
                                         # search ONLY for wms layer whose title matches CSW record title
-                                        wms_layers = search_ogc_service_for_record_title(url, title, out_path)
+                                        wms_layers = search_wms_for_csw_record_title(url, title, out_path)
                                     else:
                                         # retrieve all wms layers
                                         wms_layers = fetch_all_layers_from_ogc_service(ogc_url=url)
