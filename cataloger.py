@@ -104,8 +104,6 @@ def fetch_all_layers_from_ogc_service(ogc_url, wms_timeout=30):
     out_image_fname = None
     wms_layers = []  # list to hold wms layers that match the record title. Currently this will be max of 1
 
-    logging.info('Fetching all layers in WMS: %s', ogc_url)
-
     try:
         wms = WebMapService(ogc_url, timeout=wms_timeout)
     # TODO improve caught exception specifity
@@ -350,8 +348,8 @@ def query_csw(params):
                                 ogc_url_type = get_ogc_type(url)
                             if ogc_url_type is not None:
                                 if ogc_url_type == ogc_srv_type:
+                                    wms_layers = None
                                     logging.info('URL ogc_url_type is: {} SO searching for Matching WMS Layer'.format(ogc_url_type))
-                                    # interogating WMS here
 
                                     if restrict_wms_layers_to_match:
                                         # search ONLY for wms layer whose title matches CSW record title
@@ -359,41 +357,43 @@ def query_csw(params):
                                     else:
                                         # retrieve all wms layers
                                         wms_layers = fetch_all_layers_from_ogc_service(ogc_url=url)
-                                    if len(wms_layers) > 0:
-                                        for wms_layer in wms_layers:
-                                            wms_layer_for_record_title = wms_layer[0]
-                                            if wms_layer_for_record_title is not None:
-                                                wms_layer_for_record_name = wms_layer[1]
-                                                bbox = wms_layer[2]
-                                                bbox_srs = wms_layer[3]
-                                                bbox_wgs84 = wms_layer[4]
-                                                match_dist = wms_layer[5]
-                                                only_1_choice = wms_layer[6]
-                                                wms_get_cap_error = wms_layer[7]
-                                                wms_get_map_error = wms_layer[8]
-                                                made_get_map = wms_layer[9]
-                                                image_status = wms_layer[10]
-                                                out_image_fname = wms_layer[11]
-                                                out_records.append([
-                                                    csw_url,
-                                                    title,
-                                                    subjects,
-                                                    url,
-                                                    wms_layer_for_record_title,
-                                                    wms_layer_for_record_name,
-                                                    only_1_choice,
-                                                    match_dist,
-                                                    bbox,
-                                                    bbox_srs,
-                                                    bbox_wgs84,
-                                                    wms_get_cap_error,
-                                                    wms_get_map_error,
-                                                    made_get_map,
-                                                    image_status,
-                                                    out_image_fname
-                                                ])
-                                    else:
-                                        logging.info('Found ZERO WMS Layers in WMS')
+
+                                    if wms_layers is not None:
+                                        if len(wms_layers) > 0:
+                                            for wms_layer in wms_layers:
+                                                wms_layer_for_record_title = wms_layer[0]
+                                                if wms_layer_for_record_title is not None:
+                                                    wms_layer_for_record_name = wms_layer[1]
+                                                    bbox = wms_layer[2]
+                                                    bbox_srs = wms_layer[3]
+                                                    bbox_wgs84 = wms_layer[4]
+                                                    match_dist = wms_layer[5]
+                                                    only_1_choice = wms_layer[6]
+                                                    wms_get_cap_error = wms_layer[7]
+                                                    wms_get_map_error = wms_layer[8]
+                                                    made_get_map = wms_layer[9]
+                                                    image_status = wms_layer[10]
+                                                    out_image_fname = wms_layer[11]
+                                                    out_records.append([
+                                                        csw_url,
+                                                        title,
+                                                        subjects,
+                                                        url,
+                                                        wms_layer_for_record_title,
+                                                        wms_layer_for_record_name,
+                                                        only_1_choice,
+                                                        match_dist,
+                                                        bbox,
+                                                        bbox_srs,
+                                                        bbox_wgs84,
+                                                        wms_get_cap_error,
+                                                        wms_get_map_error,
+                                                        made_get_map,
+                                                        image_status,
+                                                        out_image_fname
+                                                    ])
+                                        else:
+                                            logging.info('Found ZERO WMS Layers in WMS {0}'.format(url))
                                 else:
                                     logging.info('URL ogc_url_type is NONE-WMS OGC SERVICE: {} SO SKIPPING searching for record title'.format(ogc_url_type))
                             else:
