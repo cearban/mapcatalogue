@@ -94,56 +94,6 @@ def check_wms_map_image(fn):
     return status
 
 
-def fetch_all_layers_from_ogc_service(ogc_url, wms_timeout=30):
-    only_1_choice = None
-    match_dist = None
-    wms_get_cap_error = False
-    wms_get_map_error = False
-    made_get_map_req = False
-    image_status = None
-    out_image_fname = None
-    wms_layers = []  # list to hold wms layers that match the record title. Currently this will be max of 1
-
-    try:
-        wms = WebMapService(ogc_url, timeout=wms_timeout)
-    # TODO improve caught exception specifity
-    except Exception:
-        logging.exception("Exception raised when instantiating WMS.")
-        wms_get_cap_error = True
-    else:
-        logging.info('WMS WAS instantiated OK')
-        logging.info('Number of named layers in WMS is: {0}. Retrieving details of all layers'.format(
-            len(list(wms.contents)))
-        )
-
-        for wms_layer in wms.contents:
-            # wms layer <Name> is machine-to-machine layer identifier
-            wms_layer_name = wms[wms_layer].name
-            # Note: in owslib wms_layer key above is layer <Name>
-
-            # wms layer <Title> is human readable layer identifier
-            # <Title> is mandatory
-            wms_layer_title = wms[wms_layer].title
-
-            # NOTE:
-            # If layer has <Title> ONLY (no <Name>) then layer is a category title with sub-layers. It itself cannot be
-            #  requested in a GetMap request
-            # If layer has <Title> AND <Name> it is a "named layer" that can be requested in a GetMap request
-
-            # grab wms <BoundingBox> for the layer, this is 5 item tuple, srs is last item
-            wms_layer_bbox = wms[wms_layer].boundingBox
-            wms_layer_bbox_srs = wms_layer_bbox[4]
-
-            # grab wms <Ex_GeographicBoundingBox> for the layer, this is 4 item tuple, srs implicit
-            wms_layer_bbox_wgs84 = wms[wms_layer].boundingBoxWGS84
-            wms_layers.append([wms_layer_title, wms_layer_name, wms_layer_bbox, wms_layer_bbox_srs,
-                               wms_layer_bbox_wgs84, match_dist, only_1_choice, wms_get_cap_error, wms_get_map_error,
-                               made_get_map_req, image_status, out_image_fname
-                               ])
-
-    return wms_layers
-
-
 def search_wms_for_csw_record_title(ogc_url, record_title, out_path, wms_timeout=30):
     """
     given an ogc_url i.e. a WMS GetCapabilties, search the layers of that WMS
@@ -307,7 +257,7 @@ def query_csw(params):
     resultset_size = params[2]
     ogc_srv_type = params[3]
     out_path = params[4]
-    restrict_wms_layers_to_match = params[5]
+
     try:
         csw = CatalogueServiceWeb(csw_url)
     # TODO improve caught exception specifity
@@ -350,13 +300,7 @@ def query_csw(params):
                                 if ogc_url_type == ogc_srv_type:
                                     wms_layers = None
                                     logging.info('URL ogc_url_type is: {} SO searching for Matching WMS Layer'.format(ogc_url_type))
-
-                                    if restrict_wms_layers_to_match:
-                                        # search ONLY for wms layer whose title matches CSW record title
-                                        wms_layers = search_wms_for_csw_record_title(url, title, out_path)
-                                    else:
-                                        # retrieve all wms layers
-                                        wms_layers = fetch_all_layers_from_ogc_service(ogc_url=url)
+                                    wms_layers = search_wms_for_csw_record_title(url, title, out_path)
 
                                     if wms_layers is not None:
                                         if len(wms_layers) > 0:
@@ -508,9 +452,6 @@ def generate_report(out_path):
 @click.option('-search_limit', default=0, type=int, help='Limit the number of CSW records searched')
 @click.option('-log_level', default='debug', type=click.Choice(['debug', 'info']), help='Log Level')
 @click.option('-createReport', 'create_report', default='y', type=click.Choice(['y', 'n']), help='Generate an HTML report')
-@click.option('--fetchAllWMSLayers', 'fetch_all_wms_layers', is_flag=True, help='Flag to fetch ALL WMS layers rather'
-                                                                                ' than only those whose title matches'
-                                                                                ' CSW record title')
 def wms_layer_finder(**params):
     """Search CSW(s) for WMS layers"""
     csv_file = params['csv_file']
@@ -519,7 +460,6 @@ def wms_layer_finder(**params):
     search_limit = params['search_limit']
     log_level = params['log_level']
     create_report = params['create_report']
-    fetch_all_wms_layers = params['fetch_all_wms_layers']
     csw_list = []
 
     if log_level == 'debug':
@@ -529,7 +469,6 @@ def wms_layer_finder(**params):
         print('search_limit: ', search_limit, type(search_limit))
         print('log_level: ', log_level)
         print('create_report: ', create_report)
-        print('fetch_all_wms_layers: ', fetch_all_wms_layers)
 
     if csv_file is not None:
         with open(csv_file, 'r') as input_file:
@@ -565,11 +504,6 @@ def wms_layer_finder(**params):
 
     logging.info('Starting')
 
-    if not fetch_all_wms_layers:
-        restrict_wms_layers_to_match = True
-    else:
-        restrict_wms_layers_to_match = False
-
     # go through each CSW in turn and search for records that have associated OGC endpoints
     for csw_url in csw_list:
         print('Searching CSW: ', csw_url)
@@ -578,8 +512,7 @@ def wms_layer_finder(**params):
             out_path=out_path,
             csw_url=csw_url,
             limit_count=search_limit,
-            ogc_srv_type='WMS:GetCapabilties',
-            restrict_wms_layers_to_match=restrict_wms_layers_to_match
+            ogc_srv_type='WMS:GetCapabilties'
         )
 
     if create_report == 'y':
