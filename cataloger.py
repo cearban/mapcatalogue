@@ -16,6 +16,7 @@ import requests
 import logging
 import click
 from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
+from postgres import Postgres
 
 
 def tidy(path, skip_files=None):
@@ -57,6 +58,51 @@ def validate_bbox(src_bbox):
                 valid_bbox = (bng_xy_min[0], bng_xy_min[1], bng_xy_max[0], bng_xy_max[1], 'EPSG:27700')
 
     return valid_bbox
+
+
+def reverse_geocode_wgs84_boundingbox(pg_conn_str, wgs84_bbox):
+    """
+    Given a wgs84 boundingbox provided as a 4 element tuple, identify using a Natural Earth global countries dataset
+    held in PostGIS db which countries the boundingbox intersects with.
+
+    :param pg_conn_str: a SQLAlchemy type Pg connection string to the db holding the natural earth polygon data
+    :param wgs84_bbox: 4 element tuple i.e. (-74.66163, 39.65041, -72.00061, 41.61214)
+    :return: a list of dictionaries in form: [{'country': 'United States', 'continent': 'North America'}, ...]
+    """
+    geographies = None
+
+    if isinstance(wgs84_bbox, tuple):
+        if len(wgs84_bbox) == 4:
+            try:
+                db = Postgres(pg_conn_str)
+            except Exception:
+                logging.exception('Could not connect to Pg using provided pg_conn_str')
+            else:
+                sql = """
+                SELECT DISTINCT b.name_long, b.continent
+                FROM
+                geocrud.natural_earth_world_map_units b
+                where st_intersects(st_makeenvelope({bbox_xmin}, {bbox_ymin}, {bbox_xmax}, {bbox_ymax}, 4326), b.geom)
+                """.format(
+                    bbox_xmin=wgs84_bbox[0],
+                    bbox_ymin=wgs84_bbox[1],
+                    bbox_xmax=wgs84_bbox[2],
+                    bbox_ymax=wgs84_bbox[3]
+                )
+                try:
+                    rs = db.all(sql)
+                except Exception:
+                    logging.exception('Problem running query, maybe table geocrud.natural_earth_world_map_units does not exist')
+                else:
+                    geographies = []
+                    for r in rs:
+                        geographies.append({'country':r[0] , 'continent':r[1]})
+        else:
+            raise ValueError('wrong number of elements in wgs84_bbox tuple')
+    else:
+        raise TypeError('wgs84_bbox must be a 4 item tuple')
+
+    return geographies
 
 
 def check_wms_map_image(fn):
@@ -250,6 +296,7 @@ def get_ogc_type(url):
 
 
 # TODO if possible fetch temporal elements from CSW records
+# TODO need to use reverse_geocode_wgs84_boundingbox() to geolocate the layer extent using layer`s wgs84 bbox
 def retrieve_and_loop_through_csw_recordset(params):
     out_records = []
     csw_url = params[0]
@@ -443,7 +490,7 @@ def generate_report(out_path):
     with open(os.path.join(out_path, 'wms_validation_report.html'), 'w') as outpf:
         outpf.write(template.render(my_list=context))
 
-
+# TODO need to add a cmdline option to provide pg_conn_str
 @click.command()
 @optgroup.group('CSW sources', cls=RequiredMutuallyExclusiveOptionGroup, help='Source of CSW(s) to be searched')
 @optgroup.option('-cswURL', 'csw_url', type=str, help='A single supplied CSW URL')
