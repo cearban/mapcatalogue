@@ -139,7 +139,10 @@ def check_wms_map_image(fn):
     logging.info('Image Status is: %s', status)
     return status
 
-
+# TODO streamline as per jupyter
+# TODO capture addtional WMS layer metadata: accessconstraints since although use conditions might be missing from the
+#  CSW record itself, this info might/seems to be present in the WMS layer point-of-access
+# TODO seperate out searching for matching WMS layer from testing the WMS layer since the latter can be slow/fragile
 def search_wms_for_csw_record_title(ogc_url, record_title, out_path, wms_timeout=30):
     """
     given an ogc_url i.e. a WMS GetCapabilties, search the layers of that WMS
@@ -157,7 +160,7 @@ def search_wms_for_csw_record_title(ogc_url, record_title, out_path, wms_timeout
     wms_layer_bbox = None
     wms_layer_bbox_srs = None
     wms_layer_bbox_wgs84 = None
-    match_dist = None
+    match_dist = None  # TODO set default match_dist to 0 rather than None
     wms_get_cap_error = False
     wms_get_map_error = False
     made_get_map_req = False
@@ -169,6 +172,7 @@ def search_wms_for_csw_record_title(ogc_url, record_title, out_path, wms_timeout
     logging.info('Looking for %s in WMS: %s', record_title, ogc_url)
 
     try:
+        # TODO explicitly set wms version to 1.3.0 since owslib defaults to 1.1.1 which OGC have deprecated
         wms = WebMapService(ogc_url, timeout=wms_timeout)
     # TODO improve caught exception specifity
     except Exception:
@@ -221,6 +225,7 @@ def search_wms_for_csw_record_title(ogc_url, record_title, out_path, wms_timeout
             #  wms[wms_layer_for_record].scaleHint BUT not often populated
 
             logging.info('Attempting to make WMS GetMap request based on layer BBox')
+            # TODO handle cases where crs in bbox is not provided
             if wms_layer_bbox_srs != '':
                 # TODO why are there cases where bbox srs is empty?
                 match_dist = min_l_dist
@@ -295,7 +300,6 @@ def get_ogc_type(url):
     return ogc_type
 
 
-# TODO if possible fetch temporal elements from CSW records
 # TODO need to use reverse_geocode_wgs84_boundingbox() to geolocate the layer extent using layer`s wgs84 bbox
 def retrieve_and_loop_through_csw_recordset(params):
     out_records = []
@@ -322,6 +326,7 @@ def retrieve_and_loop_through_csw_recordset(params):
                 r = csw.records[rec]
 
                 if r is not None:
+                    # TODO grab other CSW record elements: identifier uuid, abstract and modified
                     # fetch / clean-up title
                     title = r.title
                     if title is not None:
