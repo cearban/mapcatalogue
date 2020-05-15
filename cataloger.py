@@ -327,21 +327,21 @@ def retrieve_and_loop_through_csw_recordset(params):
                 if r is not None:
                     # TODO grab other CSW record elements: identifier uuid, abstract and modified
                     # fetch / clean-up title
-                    title = r.title
-                    if title is not None:
-                        title = title.replace("\n", "")
+                    csw_rec_title = r.title
+                    if csw_rec_title is not None:
+                        csw_rec_title = csw_rec_title.replace("\n", "")
 
                     # fetch / clean-up subjects
                     # convert the list of subjects to a string. Sometimes the list has a None, so filter these off
-                    subjects = r.subjects
-                    if subjects is not None:
-                        subjects = ', '.join(list(filter(None, subjects)))
+                    csw_rec_subjects = r.subjects
+                    if csw_rec_subjects is not None:
+                        csw_rec_subjects = ', '.join(list(filter(None, csw_rec_subjects)))
 
                     # fetch / clean-up references
-                    references = r.references
-                    if references is not None:
+                    csw_rec_references = r.references
+                    if csw_rec_references is not None:
                         ogc_urls = []
-                        for ref in references:
+                        for ref in csw_rec_references:
                             url = ref['url']
                             ogc_url_type = None
                             logging.info('Found URL {} in record references'.format(url))
@@ -351,7 +351,7 @@ def retrieve_and_loop_through_csw_recordset(params):
                                 if ogc_url_type == ogc_srv_type:
                                     wms_layers = None
                                     logging.info('URL ogc_url_type is: {} SO searching for Matching WMS Layer'.format(ogc_url_type))
-                                    wms_layers = search_wms_for_csw_record_title(url, title, out_path)
+                                    wms_layers = search_wms_for_csw_record_title(url, csw_rec_title, out_path)
 
                                     if wms_layers is not None:
                                         if len(wms_layers) > 0:
@@ -371,8 +371,8 @@ def retrieve_and_loop_through_csw_recordset(params):
                                                     out_image_fname = wms_layer[11]
                                                     out_records.append([
                                                         csw_url,
-                                                        title,
-                                                        subjects,
+                                                        csw_rec_title,
+                                                        csw_rec_subjects,
                                                         url,
                                                         wms_layer_for_record_title,
                                                         wms_layer_for_record_name,
