@@ -139,7 +139,6 @@ def check_wms_map_image(fn):
     logging.info('Image Status is: %s', status)
     return status
 
-# TODO streamline as per jupyter
 # TODO capture addtional WMS layer metadata: accessconstraints since although use conditions might be missing from the
 #  CSW record itself, this info might/seems to be present in the WMS layer point-of-access
 # TODO seperate out searching for matching WMS layer from testing the WMS layer since the latter can be slow/fragile
@@ -160,7 +159,7 @@ def search_wms_for_csw_record_title(ogc_url, record_title, out_path, wms_timeout
     wms_layer_bbox = None
     wms_layer_bbox_srs = None
     wms_layer_bbox_wgs84 = None
-    match_dist = None  # TODO set default match_dist to 0 rather than None
+    match_dist = -1
     wms_get_cap_error = False
     wms_get_map_error = False
     made_get_map_req = False
@@ -172,7 +171,6 @@ def search_wms_for_csw_record_title(ogc_url, record_title, out_path, wms_timeout
     logging.info('Looking for %s in WMS: %s', record_title, ogc_url)
 
     try:
-        # TODO explicitly set wms version to 1.3.0 since owslib defaults to 1.1.1 which OGC have deprecated
         wms = WebMapService(ogc_url, timeout=wms_timeout)
     # TODO improve caught exception specifity
     except Exception:
