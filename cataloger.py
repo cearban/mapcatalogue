@@ -139,6 +139,7 @@ def check_wms_map_image(fn):
     logging.info('Image Status is: %s', status)
     return status
 
+# TODO streamline as per jupyter - i.e. we only need to worry about BBOX when we have identified the matching layer
 # TODO capture addtional WMS layer metadata: accessconstraints since although use conditions might be missing from the
 #  CSW record itself, this info might/seems to be present in the WMS layer point-of-access
 # TODO seperate out searching for matching WMS layer from testing the WMS layer since the latter can be slow/fragile
