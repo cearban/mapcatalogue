@@ -551,6 +551,13 @@ def retrieve_and_loop_through_csw_recordset(params):
                                     # TODO use   search_wms_for_layer_matching_csw_record_title() instead
                                     wms_layers = search_wms_for_csw_record_title(url, csw_rec_title, out_path)
 
+                                    # TODO having found (or not) matching WMS layer for CSW record,
+                                    #  call test_wms_layer() to check GetMap requests can be made from it
+
+                                    # TODO having found (or not) matching WMS layer for CSW record,
+                                    #  call reverse_geocode_wgs84_boundingbox() to geocode the CSW record / WMS layer
+                                    #   extent
+
                                     if wms_layers is not None:
                                         if len(wms_layers) > 0:
                                             for wms_layer in wms_layers:
