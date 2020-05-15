@@ -140,8 +140,8 @@ def check_wms_map_image(fn):
     return status
 
 
-# TODO streamline as per jupyter - i.e. we only need to worry about BBOX when we have identified the matching layer
-# TODO seperate out searching for matching WMS layer from testing the WMS layer since the latter can be slow/fragile
+# TODO deprecate search_wms_for_csw_record_title() as now replaced by
+#  reimplemented/refactored search_wms_for_layer_matching_csw_record_title() + test_wms_layer()
 def search_wms_for_csw_record_title(ogc_url, record_title, out_path, wms_timeout=30):
     """
     given an ogc_url i.e. a WMS GetCapabilties, search the layers of that WMS
@@ -492,7 +492,6 @@ def get_ogc_type(url):
     return ogc_type
 
 
-# TODO need to use reverse_geocode_wgs84_boundingbox() to geolocate the layer extent using layer`s wgs84 bbox
 def retrieve_and_loop_through_csw_recordset(params):
     out_records = []
     csw_url = params[0]
@@ -557,6 +556,9 @@ def retrieve_and_loop_through_csw_recordset(params):
                                     # TODO having found (or not) matching WMS layer for CSW record,
                                     #  call reverse_geocode_wgs84_boundingbox() to geocode the CSW record / WMS layer
                                     #   extent
+
+                                    # TODO need to work out some way of working out a more refined bbox so we avoid
+                                    #  making request for very large e.g. all of world/all of UK etc extents
 
                                     if wms_layers is not None:
                                         if len(wms_layers) > 0:
