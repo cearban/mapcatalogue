@@ -308,56 +308,77 @@ def search_wms_for_layer_matching_csw_record_title(wms_url, csw_record_title, wm
     :param wms_timeout: OWSLib WMS timeout in secs. OWSLib defaults to 30s
     :return: dict
     """
-    wms = WebMapService(wms_url, version=wms_version, timeout=wms_timeout)
-    wms_top_level_accessconstraints = wms.identification.accessconstraints
-    matching_wms_layer_title = None
-    matching_wms_layer_name = None
-    matching_wms_layer_projected_bbox = None
-    matching_wms_layer_projected_bbox_srs = None
-    matching_wms_layer_wgs84_bbox = None
-    only_1_choice = False
-    exact_match = False
-    match_dist = -1
+    wms_get_cap_error = False  # track if we get an error when instantaiting OWSLib WMS obj
+    wms_top_level_accessconstraints = None  # to hold any provided top-level WMS accessconstraints
+    matching_wms_layer_title = None  # to hold (mandatory) wms layer <Title> which is human readable layer identifier
+    matching_wms_layer_name = None  # to hold wms layer <Name> which is machine-to-machine layer identifier
+    matching_wms_layer_wgs84_bbox = None  # to hold WMS layer <Ex_GeographicBoundingBox>
+    matching_wms_layer_projected_bbox = None  # to hold WMS layer <BoundingBox>
+
+    # Note - Only if a WMS layer has both title and name is it a named-layer that GetMap requests can be issued to
+    # retrieve. OWSLib only lists such named-layers. Layers that only have title are category layers that hold
+    # other mappable layers. Layer title is the human readable description of the name so it is this that we attempt
+    # to match to CSW record title
+
+    only_1_choice = False  # track if WMS only exposes 1 layer
+    exact_match = False  # track if there is exact match between CSW record title and WMS layer title
+    match_dist = -1  # track levenshtein distance between CSW record title and matched WMS layer title
     min_levenshtein_dist = 1000000
-    layers_checked_count = 0
+    layers_checked_count = 0  # track number of WMS layers checked when matching to CSW record title
 
-    # iterate through named layers in WMS and look for a layer whose title matches CSW record title
-    # we cannot just look for CSW record title in wms.contents as wms.contents keys are WMS layer
-    # record names and match is on title
-    for i in wms.contents:
-        wms_layer_name = wms[i].name  # WMS Layer <Name> Machine-Readable
-        wms_layer_title = wms[i].title  # WMS Layer <Title> Human-Readable
-
-        # if have an exact match we can shortcut having to go through rest of the layers
-        if wms_layer_title == csw_record_title:
-            matching_wms_layer_name = wms_layer_name
-            exact_match = True
-            break
-        else:
-            # otherwise we need to find dist between csw record title and wms layer (human-readable) title
-            levenshtein_dist = Lvn.distance(csw_record_title, wms_layer_title)
-            if levenshtein_dist < min_levenshtein_dist:
-                min_levenshtein_dist = levenshtein_dist
-                matching_wms_layer_name = wms_layer_name
-        layers_checked_count += 1
-
-    only_1_choice = False
-    if layers_checked_count == 1:
-        only_1_choice = True
-
-    if exact_match:
-        match_dist = 0
+    try:
+        wms = WebMapService(wms_url, version=wms_version, timeout=wms_timeout)
+    # TODO improve caught exception specifity
+    except Exception:
+        logging.exception("Exception raised when instantiating WMS.")
+        wms_get_cap_error = True
     else:
-        match_dist = min_levenshtein_dist
+        # success - we were able to instantiate OWSLib WebMapService obj using the WMS url
+        logging.info('WMS WAS instantiated OK')
 
-    if matching_wms_layer_name is not None:
-        if matching_wms_layer_name in list(wms.contents):
-            matching_wms_layer_title = wms.contents[matching_wms_layer_name].title
-            matching_wms_layer_wgs84_bbox = wms.contents[matching_wms_layer_name].boundingBoxWGS84
-            matching_wms_layer_projected_bbox = wms.contents[matching_wms_layer_name].boundingBox
-            matching_wms_layer_projected_bbox_srs = None
+        # Capture accessconstraints from top level WMS identification metadata. Access constraints might not be present
+        # in the CSW record itself but present in the WMS as point-of-access?
+        wms_top_level_accessconstraints = wms.identification.accessconstraints
+
+        # iterate through named layers in WMS and look for a layer whose title matches CSW record title
+        # we cannot just look for CSW record title in wms.contents as wms.contents keys are WMS layer
+        # record names and match is on title
+        for i in wms.contents:
+            wms_layer_name = wms[i].name  # WMS Layer <Name> Machine-Readable
+            wms_layer_title = wms[i].title  # WMS Layer <Title> Human-Readable
+
+            # if have an exact match we can shortcut having to go through rest of the layers
+            if wms_layer_title == csw_record_title:
+                matching_wms_layer_name = wms_layer_name
+                exact_match = True
+                break
+            else:
+                # otherwise we need to look through WMS layers and look for a layer whose title most closely matches the
+                # CSW record title. Closeness of match is determined using Levenshtein distance (LD of 0 means 2 strings
+                # are identical
+                levenshtein_dist = Lvn.distance(csw_record_title, wms_layer_title)
+                if levenshtein_dist < min_levenshtein_dist:
+                    min_levenshtein_dist = levenshtein_dist
+                    matching_wms_layer_name = wms_layer_name
+            layers_checked_count += 1
+
+        only_1_choice = False
+        if layers_checked_count == 1:
+            only_1_choice = True
+
+        if exact_match:
+            match_dist = 0
+        else:
+            match_dist = min_levenshtein_dist
+
+        if matching_wms_layer_name is not None:
+            if matching_wms_layer_name in list(wms.contents):
+                matching_wms_layer_title = wms.contents[matching_wms_layer_name].title
+                matching_wms_layer_wgs84_bbox = wms.contents[matching_wms_layer_name].boundingBoxWGS84
+                matching_wms_layer_projected_bbox = wms.contents[matching_wms_layer_name].boundingBox
 
     matched_wms_layer = {
+        'wms_get_cap_error': wms_get_cap_error,  # i.e. if this is False we were unable to search WMS
         'wms_top_level_accessconstraints': wms_top_level_accessconstraints,
         'matching_wms_layer_title': matching_wms_layer_title,
         'matching_wms_layer_name': matching_wms_layer_name,
