@@ -470,8 +470,7 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
                     'image_status',  # 17
                     'out_image_fname'  # 18
                 ]
-                # TODO stop writing the header in wms_layers.csv multiple times
-                # TODO check that the output CSV is legit i.e. there are NOT trailing seperators
+
                 if write_header:
                     my_writer.writerow(out_fields)
 
