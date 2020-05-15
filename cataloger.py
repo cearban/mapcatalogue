@@ -275,23 +275,94 @@ def search_wms_for_csw_record_title(ogc_url, record_title, out_path, wms_timeout
     return wms_layers
 
 
-def test_wms_layer(wms_url, wms_layer, wms_srs, wms_aoi_bbox, out_path, wms_timeout=30):
+# TODO handle WMS Layer Style
+def test_wms_layer(wms_url, wms_layer_name, out_path, request_wgs84_layer_extent=True, request_projected_layer_extent=False, request_custom_extent=False, custom_extent_bbox=None, wms_version='1.1.1', wms_timeout=30):
     """
+    Test a WMS layer by making a GetMap request for it and then running image processing validation on the retrieved image
 
+    Defaults to making a GetMap request that corresponds to the layer`s bbox in WGS84 since this can be guaranteed to be
+    available for all layers
 
-    :param wms_url:
-    :param wms_layer:
-    :param wms_srs:
-    :param wms_aoi_bbox:
-    :param out_path:
-    :param wms_timeout:
+    returns following info regarding this testing
+
+    wms_get_cap_error - True/False - WMS GetCapabilties error i.e. OWSLib could not instantiate WMS obj using wms_url
+    made_get_map_req - True/False - Made GetMap request. Might be false if bbox problematic
+    wms_get_map_error - True/False - WMS GetMap error generated when making WMS GetMap request
+    image_status - string describing state of map image returned from the GetMap request and written to disk
+    out_image_fname - full path to the map image returned from the GetMap request and written to disk
+
+    :param wms_url: WMS URL
+    :param wms_layer_name: name of WMS layer to request
+    :param out_path: where to write image retrieved from WMS
+    :param request_wgs84_layer_extent: request map corresponding to entire layer wgs84 bbox, defaults to True
+    :param request_projected_layer_extent: request map corresponding to entire layer projected bbox, defaults to False
+    :param request_custom_extent: request map corresponding to a custom bbox, defaults to False
+    :param custom_extent_bbox: custom bbox
+    :param wms_version: '1.1.1' or '1.3.0' Current version of OGC WMS standard is 1.3.0. OWSLib defaults to 1.1.1
+    :param wms_timeout: OWSLib WMS timeout in secs. OWSLib defaults to 30s
     :return:
     """
-    wms_get_cap_error = None
-    wms_get_map_error = None
-    made_get_map_req = None
+    wms_url = wms_url
+    wms_layer_name = wms_layer_name
+    out_path = out_path
+    request_wgs84_layer_extent = request_wgs84_layer_extent
+    request_projected_layer_extent = request_projected_layer_extent
+    request_custom_extent = request_custom_extent
+    custom_extent_bbox = custom_extent_bbox
+    wms_version = wms_version
+    wms_timeout = wms_timeout
+    wms_get_cap_error = False
+    wms_get_map_error = False
+    made_get_map_req = False
     image_status = None
     out_image_fname = None
+
+    if request_wgs84_layer_extent:
+        logging.info('Requested to test GetMap for Layer WGS84 BBox')
+        try:
+            wms = WebMapService(wms_url, version=wms_version, timeout=wms_timeout)
+        # TODO improve caught exception specifity
+        except Exception:
+            logging.exception("Exception raised when instantiating WMS.")
+            wms_get_cap_error = True
+        else:
+            logging.info('WMS WAS instantiated OK')
+            if wms_layer_name in list(wms.contents):
+                wms_layer_bbox = wms.contents[wms_layer_name].boundingBox
+                try:
+                    img = wms.getmap(
+                        layers=[wms_layer_name],
+                        srs='EPSG:4326',  # TODO EPSG:4326 or CRS:84?
+                        bbox=wms_layer_bbox,
+                        size=(400, 400),
+                        format='image/png'
+                    )
+                # TODO improve caught exception specifity
+                except Exception:
+                    logging.exception("Exception raised when making WMS GetMap Request.")
+                    wms_get_map_error = True
+                else:
+                    made_get_map_req = True
+                    logging.info('GetMap request made OK')
+                    logging.info('Writing map to temp image')
+                    out_image_fname = os.path.join(
+                        out_path,
+                        "".join([str(uuid.uuid1().int), "_wms_map.png"])
+                    )
+                    with open(out_image_fname, 'wb') as outpf:
+                        outpf.write(img.read())
+
+                    if os.path.exists(out_image_fname):
+                        image_status = check_wms_map_image(out_image_fname)
+
+    if request_projected_layer_extent:
+        pass
+
+    if request_custom_extent:
+        if custom_extent_bbox is not None:
+            pass
+        else:
+            print('Custom map extent requested but no custom extent provided')
 
     return wms_get_cap_error, wms_get_map_error, made_get_map_req, image_status, out_image_fname
 
