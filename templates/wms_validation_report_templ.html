@@ -38,30 +38,31 @@
                 <li>wms_url: {{n[6]}}</li>
                 <li>wms_layer_for_record_title: {{n[7]}}</li>
                 <li>wms_layer_for_record_name: {{n[8]}}</li>
-                <li>only_1_choice: {{n[9]}}</li>
-                <li>match_dist: {{n[10]}}</li>
-                <li>bbox: {{n[11]}}</li>
-                <li>bbox_srs: {{n[12]}}</li>
-                <li>bbox_wgs84: {{n[13]}}</li>
-                {% if n[14] == 'True'%}
+                <li>wms_access_constraints: {{n[9]}}</li>
+                <li>only_1_choice: {{n[10]}}</li>
+                <li>match_dist: {{n[11]}}</li>
+                <li>bbox: {{n[12]}}</li>
+                <li>bbox_srs: {{n[13]}}</li>
+                <li>bbox_wgs84: {{n[14]}}</li>
+                {% if n[15] == 'True'%}
                 <li>wms_get_cap_error: <span class="not_ok">Yes</span></li>
                 {% else %}
                 <li>wms_get_cap_error: <span class="ok">No</span></li>
                 {% endif %}
-                {% if n[15] == 'True' %}
+                {% if n[16] == 'True' %}
                 <li>wms_get_map_error: <span class="not_ok">Yes</span></li>
                 {% else %}
                 <li>wms_get_map_error: <span class="ok">No</span></li>
                 {% endif %}
-                {% if n[16] == 'True'%}
+                {% if n[17] == 'True'%}
                 <li>wms_get_map_req: <span class="ok">Yes</span></li>
                 {% else %}
                 <li>wms_get_map_req: <span class="not_ok">No</span></li>
                 {% endif %}
-                <li>image_status: {{n[17]}}</li>
+                <li>image_status: {{n[18]}}</li>
             </ul>
         </td>
-        <td><img id="map_thumbnail" width=150 height=150 src="{{n[18]}}"></img></td>
+        <td><img id="map_thumbnail" width=150 height=150 src="{{n[19]}}"></img></td>
     </tr>
     {% endfor %}
 </table>
