@@ -325,7 +325,10 @@ def retrieve_and_loop_through_csw_recordset(params):
                 r = csw.records[rec]
 
                 if r is not None:
-                    # TODO grab other CSW record elements: identifier uuid, abstract and modified
+                    csw_rec_identifier = r.identifier
+                    csw_rec_abstract = r.abstract
+                    csw_rec_modified = r.modified
+
                     # fetch / clean-up title
                     csw_rec_title = r.title
                     if csw_rec_title is not None:
@@ -371,8 +374,11 @@ def retrieve_and_loop_through_csw_recordset(params):
                                                     out_image_fname = wms_layer[11]
                                                     out_records.append([
                                                         csw_url,
+                                                        csw_rec_identifier,
                                                         csw_rec_title,
                                                         csw_rec_subjects,
+                                                        csw_rec_abstract,
+                                                        csw_rec_modified,
                                                         url,
                                                         wms_layer_for_record_title,
                                                         wms_layer_for_record_name,
@@ -445,21 +451,24 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
                 my_writer = csv.writer(outpf, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
                 out_fields = [
                     'csw_url',  # 0
-                    'csw_record_title',  # 1
-                    'csw_record_subjects',  # 2
-                    'wms_url',  # 3
-                    'wms_layer_for_record_title',  # 4
-                    'wms_layer_for_record_name',  # 5
-                    'only_1_choice',  # 6
-                    'match_dist',  # 7
-                    'bbox', # 8
-                    'bbox_srs',  # 9
-                    'bbox_wgs84', # 10
-                    'wms_get_cap_error',  # 11
-                    'wms_get_map_error',  # 12
-                    'made_get_map_req',  # 13
-                    'image_status',  # 14
-                    'out_image_fname'  # 15
+                    'csw_record_identifier',  # 1
+                    'csw_record_title',  # 2
+                    'csw_record_subjects',  # 3
+                    'csw_record_abstract',  # 4
+                    'csw_record_modified',  # 5
+                    'wms_url',  # 6
+                    'wms_layer_for_record_title',  # 7
+                    'wms_layer_for_record_name',  # 8
+                    'only_1_choice',  # 9
+                    'match_dist',  # 10
+                    'bbox',  # 11
+                    'bbox_srs',  # 12
+                    'bbox_wgs84', # 13
+                    'wms_get_cap_error',  # 14
+                    'wms_get_map_error',  # 15
+                    'made_get_map_req',  # 16
+                    'image_status',  # 17
+                    'out_image_fname'  # 18
                 ]
                 # TODO stop writing the header in wms_layers.csv multiple times
                 # TODO check that the output CSV is legit i.e. there are NOT trailing seperators
