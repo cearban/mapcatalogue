@@ -30,34 +30,38 @@
             <ul>
                 <li>{{loop.index}}</li>
                 <li>csw_url: {{n[0]}}</li>
-                <li>title: {{n[1]}}</li>
-                <li>subjects: {{n[2]}}</li>
-                <li>wms_url: {{n[3]}}</li>
-                <li>wms_layer_for_record: {{n[4]}}</li>
-                <li>only_1_choice: {{n[5]}}</li>
-                <li>match_dist: {{n[6]}}</li>
-                <li>bbox: {{n[7]}}</li>
-                <li>bbox_srs: {{n[8]}}</li>
-                <li>bbox_wgs84: {{n[9]}}</li>
-                {% if n[10] == 'True'%}
+                <li>csw_record_identifier: {{n[1]}}</li>
+                <li>csw_record_title: {{n[2]}}</li>
+                <li>csw_record_subjects: {{n[3]}}</li>
+                <li>csw_record_abstract: {{n[4]}}</li>
+                <li>csw_record_modified: {{n[5]}}</li>
+                <li>wms_url: {{n[6]}}</li>
+                <li>wms_layer_for_record_title: {{n[7]}}</li>
+                <li>wms_layer_for_record_name: {{n[8]}}</li>
+                <li>only_1_choice: {{n[9]}}</li>
+                <li>match_dist: {{n[10]}}</li>
+                <li>bbox: {{n[11]}}</li>
+                <li>bbox_srs: {{n[12]}}</li>
+                <li>bbox_wgs84: {{n[13]}}</li>
+                {% if n[14] == 'True'%}
                 <li>wms_get_cap_error: <span class="not_ok">Yes</span></li>
                 {% else %}
                 <li>wms_get_cap_error: <span class="ok">No</span></li>
                 {% endif %}
-                {% if n[11] == 'True' %}
+                {% if n[15] == 'True' %}
                 <li>wms_get_map_error: <span class="not_ok">Yes</span></li>
                 {% else %}
                 <li>wms_get_map_error: <span class="ok">No</span></li>
                 {% endif %}
-                {% if n[12] == 'True'%}
+                {% if n[16] == 'True'%}
                 <li>wms_get_map_req: <span class="ok">Yes</span></li>
                 {% else %}
                 <li>wms_get_map_req: <span class="not_ok">No</span></li>
                 {% endif %}
-                <li>image_status: {{n[13]}}</li>
+                <li>image_status: {{n[17]}}</li>
             </ul>
         </td>
-        <td><img id="map_thumbnail" width=150 height=150 src="{{n[14]}}"></img></td>
+        <td><img id="map_thumbnail" width=150 height=150 src="{{n[18]}}"></img></td>
     </tr>
     {% endfor %}
 </table>
