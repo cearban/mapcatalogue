@@ -296,16 +296,79 @@ def test_wms_layer(wms_url, wms_layer, wms_srs, wms_aoi_bbox, out_path, wms_time
     return wms_get_cap_error, wms_get_map_error, made_get_map_req, image_status, out_image_fname
 
 
-def search_wms_for_csw_record_title2(ogc_url, record_title, out_path, wms_timeout=30):
+def search_wms_for_layer_matching_csw_record_title(wms_url, csw_record_title, wms_version='1.1.1', wms_timeout=30):
     """
+    new streamlined version of search_wms_for_layer_matching_csw_record_title() that only retrieves wms layer
+    elements when needed and now no longer makes as WMS GetMap request to test the WMS as we will do this in
+    a seperate function
 
-    :param ogc_url:
-    :param record_title:
-    :param out_path:
-    :param wms_timeout:
-    :return:
+    :param wms_url: WMS URL
+    :param csw_record_title: title of CSW record we want to search for a matching WMS layer for (matching on lyr title)
+    :param wms_version: '1.1.1' or '1.3.0' Current version of OGC WMS standard is 1.3.0. OWSLib defaults to 1.1.1
+    :param wms_timeout: OWSLib WMS timeout in secs. OWSLib defaults to 30s
+    :return: dict
     """
-    pass
+    wms = WebMapService(wms_url, version=wms_version, timeout=wms_timeout)
+    wms_top_level_accessconstraints = wms.identification.accessconstraints
+    matching_wms_layer_title = None
+    matching_wms_layer_name = None
+    matching_wms_layer_projected_bbox = None
+    matching_wms_layer_projected_bbox_srs = None
+    matching_wms_layer_wgs84_bbox = None
+    only_1_choice = False
+    exact_match = False
+    match_dist = -1
+    min_levenshtein_dist = 1000000
+    layers_checked_count = 0
+
+    # iterate through named layers in WMS and look for a layer whose title matches CSW record title
+    # we cannot just look for CSW record title in wms.contents as wms.contents keys are WMS layer
+    # record names and match is on title
+    for i in wms.contents:
+        wms_layer_name = wms[i].name  # WMS Layer <Name> Machine-Readable
+        wms_layer_title = wms[i].title  # WMS Layer <Title> Human-Readable
+
+        # if have an exact match we can shortcut having to go through rest of the layers
+        if wms_layer_title == csw_record_title:
+            matching_wms_layer_name = wms_layer_name
+            exact_match = True
+            break
+        else:
+            # otherwise we need to find dist between csw record title and wms layer (human-readable) title
+            levenshtein_dist = Lvn.distance(csw_record_title, wms_layer_title)
+            if levenshtein_dist < min_levenshtein_dist:
+                min_levenshtein_dist = levenshtein_dist
+                matching_wms_layer_name = wms_layer_name
+        layers_checked_count += 1
+
+    only_1_choice = False
+    if layers_checked_count == 1:
+        only_1_choice = True
+
+    if exact_match:
+        match_dist = 0
+    else:
+        match_dist = min_levenshtein_dist
+
+    if matching_wms_layer_name is not None:
+        if matching_wms_layer_name in list(wms.contents):
+            matching_wms_layer_title = wms.contents[matching_wms_layer_name].title
+            matching_wms_layer_wgs84_bbox = wms.contents[matching_wms_layer_name].boundingBoxWGS84
+            matching_wms_layer_projected_bbox = wms.contents[matching_wms_layer_name].boundingBox
+            matching_wms_layer_projected_bbox_srs = None
+
+    matched_wms_layer = {
+        'wms_top_level_accessconstraints': wms_top_level_accessconstraints,
+        'matching_wms_layer_title': matching_wms_layer_title,
+        'matching_wms_layer_name': matching_wms_layer_name,
+        'matching_wms_layer_wgs84_bbox': matching_wms_layer_wgs84_bbox,
+        'matching_wms_layer_projected_bbox': matching_wms_layer_projected_bbox,
+        'only_1_choice': only_1_choice,
+        'exact_match': exact_match,
+        'match_dist': match_dist
+    }
+
+    return matched_wms_layer
 
 
 def get_ogc_type(url):
@@ -392,6 +455,8 @@ def retrieve_and_loop_through_csw_recordset(params):
                                 if ogc_url_type == ogc_srv_type:
                                     wms_layers = None
                                     logging.info('URL ogc_url_type is: {} SO searching for Matching WMS Layer'.format(ogc_url_type))
+
+                                    # TODO use   search_wms_for_layer_matching_csw_record_title() instead
                                     wms_layers = search_wms_for_csw_record_title(url, csw_rec_title, out_path)
 
                                     if wms_layers is not None:
