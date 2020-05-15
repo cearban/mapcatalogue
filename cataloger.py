@@ -139,6 +139,7 @@ def check_wms_map_image(fn):
     logging.info('Image Status is: %s', status)
     return status
 
+
 # TODO streamline as per jupyter - i.e. we only need to worry about BBOX when we have identified the matching layer
 # TODO seperate out searching for matching WMS layer from testing the WMS layer since the latter can be slow/fragile
 def search_wms_for_csw_record_title(ogc_url, record_title, out_path, wms_timeout=30):
@@ -272,6 +273,39 @@ def search_wms_for_csw_record_title(ogc_url, record_title, out_path, wms_timeout
                        ])
 
     return wms_layers
+
+
+def test_wms_layer(wms_url, wms_layer, wms_srs, wms_aoi_bbox, out_path, wms_timeout=30):
+    """
+
+
+    :param wms_url:
+    :param wms_layer:
+    :param wms_srs:
+    :param wms_aoi_bbox:
+    :param out_path:
+    :param wms_timeout:
+    :return:
+    """
+    wms_get_cap_error = None
+    wms_get_map_error = None
+    made_get_map_req = None
+    image_status = None
+    out_image_fname = None
+
+    return wms_get_cap_error, wms_get_map_error, made_get_map_req, image_status, out_image_fname
+
+
+def search_wms_for_csw_record_title2(ogc_url, record_title, out_path, wms_timeout=30):
+    """
+
+    :param ogc_url:
+    :param record_title:
+    :param out_path:
+    :param wms_timeout:
+    :return:
+    """
+    pass
 
 
 def get_ogc_type(url):
