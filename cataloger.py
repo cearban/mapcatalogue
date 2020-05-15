@@ -140,8 +140,6 @@ def check_wms_map_image(fn):
     return status
 
 # TODO streamline as per jupyter - i.e. we only need to worry about BBOX when we have identified the matching layer
-# TODO capture addtional WMS layer metadata: accessconstraints since although use conditions might be missing from the
-#  CSW record itself, this info might/seems to be present in the WMS layer point-of-access
 # TODO seperate out searching for matching WMS layer from testing the WMS layer since the latter can be slow/fragile
 def search_wms_for_csw_record_title(ogc_url, record_title, out_path, wms_timeout=30):
     """
@@ -157,6 +155,7 @@ def search_wms_for_csw_record_title(ogc_url, record_title, out_path, wms_timeout
     only_1_choice = False
     wms_layer_for_record_name = None
     wms_layer_for_record_title = None
+    wms_top_level_accessconstraints = None
     wms_layer_bbox = None
     wms_layer_bbox_srs = None
     wms_layer_bbox_wgs84 = None
@@ -179,6 +178,11 @@ def search_wms_for_csw_record_title(ogc_url, record_title, out_path, wms_timeout
         wms_get_cap_error = True
     else:
         logging.info('WMS WAS instantiated OK')
+
+        # Capture accessconstraints from top level WMS identification metadata. Access constraints might not be present
+        # in the CSW record itself but present in the WMS as point-of-access?
+        wms_top_level_accessconstraints = wms.identification.accessconstraints
+
         logging.info('Searching WMS layer that matches record_title: %s', record_title)
         min_l_dist = 1000000
 
@@ -261,7 +265,7 @@ def search_wms_for_csw_record_title(ogc_url, record_title, out_path, wms_timeout
     if num_layers == 1:
         only_1_choice = True
 
-    wms_layers.append([wms_layer_for_record_title, wms_layer_for_record_name, wms_layer_bbox, wms_layer_bbox_srs,
+    wms_layers.append([wms_layer_for_record_title, wms_layer_for_record_name, wms_top_level_accessconstraints, wms_layer_bbox, wms_layer_bbox_srs,
                        wms_layer_bbox_wgs84, match_dist, only_1_choice, wms_get_cap_error, wms_get_map_error,
                        made_get_map_req,
                        image_status, out_image_fname
@@ -362,16 +366,17 @@ def retrieve_and_loop_through_csw_recordset(params):
                                                 wms_layer_for_record_title = wms_layer[0]
                                                 if wms_layer_for_record_title is not None:
                                                     wms_layer_for_record_name = wms_layer[1]
-                                                    bbox = wms_layer[2]
-                                                    bbox_srs = wms_layer[3]
-                                                    bbox_wgs84 = wms_layer[4]
-                                                    match_dist = wms_layer[5]
-                                                    only_1_choice = wms_layer[6]
-                                                    wms_get_cap_error = wms_layer[7]
-                                                    wms_get_map_error = wms_layer[8]
-                                                    made_get_map = wms_layer[9]
-                                                    image_status = wms_layer[10]
-                                                    out_image_fname = wms_layer[11]
+                                                    wms_top_level_accessconstraints = wms_layer[2]
+                                                    bbox = wms_layer[3]
+                                                    bbox_srs = wms_layer[4]
+                                                    bbox_wgs84 = wms_layer[5]
+                                                    match_dist = wms_layer[6]
+                                                    only_1_choice = wms_layer[7]
+                                                    wms_get_cap_error = wms_layer[8]
+                                                    wms_get_map_error = wms_layer[9]
+                                                    made_get_map = wms_layer[10]
+                                                    image_status = wms_layer[11]
+                                                    out_image_fname = wms_layer[12]
                                                     out_records.append([
                                                         csw_url,
                                                         csw_rec_identifier,
@@ -382,6 +387,7 @@ def retrieve_and_loop_through_csw_recordset(params):
                                                         url,
                                                         wms_layer_for_record_title,
                                                         wms_layer_for_record_name,
+                                                        wms_top_level_accessconstraints,
                                                         only_1_choice,
                                                         match_dist,
                                                         bbox,
@@ -459,16 +465,17 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
                     'wms_url',  # 6
                     'wms_layer_for_record_title',  # 7
                     'wms_layer_for_record_name',  # 8
-                    'only_1_choice',  # 9
-                    'match_dist',  # 10
-                    'bbox',  # 11
-                    'bbox_srs',  # 12
-                    'bbox_wgs84', # 13
-                    'wms_get_cap_error',  # 14
-                    'wms_get_map_error',  # 15
-                    'made_get_map_req',  # 16
-                    'image_status',  # 17
-                    'out_image_fname'  # 18
+                    'wms_access_constraints',  # 9
+                    'only_1_choice',  # 10
+                    'match_dist',  # 11
+                    'bbox',  # 12
+                    'bbox_srs',  # 13
+                    'bbox_wgs84', # 14
+                    'wms_get_cap_error',  # 15
+                    'wms_get_map_error',  # 16
+                    'made_get_map_req',  # 17
+                    'image_status',  # 18
+                    'out_image_fname'  # 19
                 ]
 
                 if write_header:
