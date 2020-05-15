@@ -494,7 +494,7 @@ def generate_report(out_path):
     with open(os.path.join(out_path, 'wms_validation_report.html'), 'w') as outpf:
         outpf.write(template.render(my_list=context))
 
-# TODO need to add a cmdline option to provide pg_conn_str
+
 @click.command()
 @optgroup.group('CSW sources', cls=RequiredMutuallyExclusiveOptionGroup, help='Source of CSW(s) to be searched')
 @optgroup.option('-cswURL', 'csw_url', type=str, help='A single supplied CSW URL')
@@ -503,6 +503,7 @@ def generate_report(out_path):
 @click.option('-search_limit', default=0, type=int, help='Limit the number of CSW records searched')
 @click.option('-log_level', default='debug', type=click.Choice(['debug', 'info']), help='Log Level')
 @click.option('-createReport', 'create_report', default='y', type=click.Choice(['y', 'n']), help='Generate an HTML report')
+@click.option('-geocoder_db_conn_str', type=str, help='(Geocoder) Pg connection string for db holding Natural Earth World Map Units polygons')
 def wms_layer_finder(**params):
     """Search CSW(s) for WMS layers"""
     csv_file = params['csv_file']
@@ -511,6 +512,7 @@ def wms_layer_finder(**params):
     search_limit = params['search_limit']
     log_level = params['log_level']
     create_report = params['create_report']
+    geocoder_db_conn_str = params['geocoder_db_conn_str']
     csw_list = []
 
     if log_level == 'debug':
@@ -520,6 +522,7 @@ def wms_layer_finder(**params):
         print('search_limit: ', search_limit, type(search_limit))
         print('log_level: ', log_level)
         print('create_report: ', create_report)
+        print('geocoder_db_conn_str: ', geocoder_db_conn_str)
 
     if csv_file is not None:
         with open(csv_file, 'r') as input_file:
@@ -554,6 +557,12 @@ def wms_layer_finder(**params):
     )
 
     logging.info('Starting')
+
+    have_geocoder = False
+    if geocoder_db_conn_str is not None:
+        have_geocoder = True
+        logging.info('Have Pg geocoder(Natural Earth)')
+
 
     # go through each CSW in turn and search for records that have associated OGC endpoints
     for csw_url in csw_list:
