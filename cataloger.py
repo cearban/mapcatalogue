@@ -520,6 +520,7 @@ def retrieve_and_loop_through_csw_recordset(params):
                     csw_rec_identifier = r.identifier
                     csw_rec_abstract = r.abstract
                     csw_rec_modified = r.modified
+                    csw_rec_publisher = r.publisher
 
                     # fetch / clean-up title
                     csw_rec_title = r.title
@@ -580,6 +581,7 @@ def retrieve_and_loop_through_csw_recordset(params):
                                                     out_records.append([
                                                         csw_url,
                                                         csw_rec_identifier,
+                                                        csw_rec_publisher,
                                                         csw_rec_title,
                                                         csw_rec_subjects,
                                                         csw_rec_abstract,
@@ -658,24 +660,25 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
                 out_fields = [
                     'csw_url',  # 0
                     'csw_record_identifier',  # 1
-                    'csw_record_title',  # 2
-                    'csw_record_subjects',  # 3
-                    'csw_record_abstract',  # 4
-                    'csw_record_modified',  # 5
-                    'wms_url',  # 6
-                    'wms_layer_for_record_title',  # 7
-                    'wms_layer_for_record_name',  # 8
-                    'wms_access_constraints',  # 9
-                    'only_1_choice',  # 10
-                    'match_dist',  # 11
-                    'bbox',  # 12
-                    'bbox_srs',  # 13
-                    'bbox_wgs84', # 14
-                    'wms_get_cap_error',  # 15
-                    'wms_get_map_error',  # 16
-                    'made_get_map_req',  # 17
-                    'image_status',  # 18
-                    'out_image_fname'  # 19
+                    'csw_record_publisher',  # 2
+                    'csw_record_title',  # 3
+                    'csw_record_subjects',  # 4
+                    'csw_record_abstract',  # 5
+                    'csw_record_modified',  # 6
+                    'wms_url',  # 7
+                    'wms_layer_for_record_title',  # 8
+                    'wms_layer_for_record_name',  # 9
+                    'wms_access_constraints',  # 10
+                    'only_1_choice',  # 11
+                    'match_dist',  # 12
+                    'bbox',  # 13
+                    'bbox_srs',  # 14
+                    'bbox_wgs84', # 15
+                    'wms_get_cap_error',  # 16
+                    'wms_get_map_error',  # 17
+                    'made_get_map_req',  # 18
+                    'image_status',  # 19
+                    'out_image_fname'  # 20
                 ]
 
                 if write_header:
