@@ -145,7 +145,7 @@ def check_wms_map_image(fn):
 # TODO need to work out some way of working out a more refined bbox so we avoid
 #  making request for very large e.g. all of world/all of UK etc extents when defaulting to layer extent
 # TODO handle WMS Layer Style
-def test_wms_layer(wms_url, wms_layer_name, out_path, request_wgs84_layer_extent=True, request_projected_layer_extent=False, request_custom_extent=False, custom_extent_bbox=None, wms_version='1.1.1', wms_timeout=30):
+def test_wms_layer(wms, wms_layer_name, out_path, request_wgs84_layer_extent=True, request_projected_layer_extent=False, request_custom_extent=False, custom_extent_bbox=None):
     """
     Test a WMS layer by making a GetMap request for it and then running image processing validation on the retrieved image
 
@@ -160,27 +160,22 @@ def test_wms_layer(wms_url, wms_layer_name, out_path, request_wgs84_layer_extent
     image_status - string describing state of map image returned from the GetMap request and written to disk
     out_image_fname - full path to the map image returned from the GetMap request and written to disk
 
-    :param wms_url: WMS URL
+    :param wms: OWSLib WebMapService object
     :param wms_layer_name: name of WMS layer to request
     :param out_path: where to write image retrieved from WMS
     :param request_wgs84_layer_extent: request map corresponding to entire layer wgs84 bbox, defaults to True
     :param request_projected_layer_extent: request map corresponding to entire layer projected bbox, defaults to False
     :param request_custom_extent: request map corresponding to a custom bbox, defaults to False
     :param custom_extent_bbox: custom bbox
-    :param wms_version: '1.1.1' or '1.3.0' Current version of OGC WMS standard is 1.3.0. OWSLib defaults to 1.1.1
-    :param wms_timeout: OWSLib WMS timeout in secs. OWSLib defaults to 30s
     :return:
     """
-    wms_url = wms_url
+    wms = wms
     wms_layer_name = wms_layer_name
     out_path = out_path
     request_wgs84_layer_extent = request_wgs84_layer_extent
     request_projected_layer_extent = request_projected_layer_extent
     request_custom_extent = request_custom_extent
     custom_extent_bbox = custom_extent_bbox
-    wms_version = wms_version
-    wms_timeout = wms_timeout
-    wms_get_cap_error = False
     wms_get_map_error = False
     made_get_map_req = False
     image_status = None
@@ -188,41 +183,33 @@ def test_wms_layer(wms_url, wms_layer_name, out_path, request_wgs84_layer_extent
 
     if request_wgs84_layer_extent:
         logging.info('Requested to test GetMap for Layer WGS84 BBox')
-        try:
-            wms = WebMapService(wms_url, version=wms_version, timeout=wms_timeout)
-        # TODO improve caught exception specifity
-        except Exception:
-            logging.exception("Exception raised when instantiating WMS.")
-            wms_get_cap_error = True
-        else:
-            logging.info('WMS WAS instantiated OK')
-            if wms_layer_name in list(wms.contents):
-                wms_layer_bbox = wms.contents[wms_layer_name].boundingBoxWGS84
-                try:
-                    img = wms.getmap(
-                        layers=[wms_layer_name],
-                        srs='EPSG:4326',
-                        bbox=wms_layer_bbox,
-                        size=(400, 400),
-                        format='image/png'
-                    )
-                # TODO improve caught exception specifity
-                except Exception:
-                    logging.exception("Exception raised when making WMS GetMap Request.")
-                    wms_get_map_error = True
-                else:
-                    made_get_map_req = True
-                    logging.info('GetMap request made OK')
-                    logging.info('Writing map to temp image')
-                    out_image_fname = os.path.join(
-                        out_path,
-                        "".join([str(uuid.uuid1().int), "_wms_map.png"])
-                    )
-                    with open(out_image_fname, 'wb') as outpf:
-                        outpf.write(img.read())
+        if wms_layer_name in list(wms.contents):
+            wms_layer_bbox = wms.contents[wms_layer_name].boundingBoxWGS84
+            try:
+                img = wms.getmap(
+                    layers=[wms_layer_name],
+                    srs='EPSG:4326',
+                    bbox=wms_layer_bbox,
+                    size=(400, 400),
+                    format='image/png'
+                )
+            # TODO improve caught exception specifity
+            except Exception:
+                logging.exception("Exception raised when making WMS GetMap Request.")
+                wms_get_map_error = True
+            else:
+                made_get_map_req = True
+                logging.info('GetMap request made OK')
+                logging.info('Writing map to temp image')
+                out_image_fname = os.path.join(
+                    out_path,
+                    "".join([str(uuid.uuid1().int), "_wms_map.png"])
+                )
+                with open(out_image_fname, 'wb') as outpf:
+                    outpf.write(img.read())
 
-                    if os.path.exists(out_image_fname):
-                        image_status = check_wms_map_image(out_image_fname)
+                if os.path.exists(out_image_fname):
+                    image_status = check_wms_map_image(out_image_fname)
 
     if request_projected_layer_extent:
         pass
@@ -233,24 +220,21 @@ def test_wms_layer(wms_url, wms_layer_name, out_path, request_wgs84_layer_extent
         else:
             print('Custom map extent requested but no custom extent provided')
 
-    return wms_get_cap_error, wms_get_map_error, made_get_map_req, image_status, out_image_fname
+    return wms_get_map_error, made_get_map_req, image_status, out_image_fname
 
 
-def search_wms_for_layer_matching_csw_record_title(wms_url, csw_record_title, wms_version='1.1.1', wms_timeout=30):
+def search_wms_for_layer_matching_csw_record_title(wms, csw_record_title):
     """
     new streamlined version of search_wms_for_layer_matching_csw_record_title() that only retrieves wms layer
     elements when needed and now no longer makes as WMS GetMap request to test the WMS as we will do this in
     a seperate function
 
-    :param wms_url: WMS URL
+    :param wms: OWSLib WebMapService object
     :param csw_record_title: title of CSW record we want to search for a matching WMS layer for (matching on lyr title)
-    :param wms_version: '1.1.1' or '1.3.0' Current version of OGC WMS standard is 1.3.0. OWSLib defaults to 1.1.1
-    :param wms_timeout: OWSLib WMS timeout in secs. OWSLib defaults to 30s
     :return: dict
     """
     found_match = False
     wms_get_cap_error = False  # track if we get an error when instantaiting OWSLib WMS obj
-    wms_top_level_accessconstraints = None  # to hold any provided top-level WMS accessconstraints
     matching_wms_layer_title = None  # to hold (mandatory) wms layer <Title> which is human readable layer identifier
     matching_wms_layer_name = None  # to hold wms layer <Name> which is machine-to-machine layer identifier
     matching_wms_layer_wgs84_bbox = None  # to hold WMS layer <Ex_GeographicBoundingBox>
@@ -267,57 +251,47 @@ def search_wms_for_layer_matching_csw_record_title(wms_url, csw_record_title, wm
     min_levenshtein_dist = 1000000
     layers_checked_count = 0  # track number of WMS layers checked when matching to CSW record title
 
-    try:
-        wms = WebMapService(wms_url, version=wms_version, timeout=wms_timeout)
-    # TODO improve caught exception specifity
-    except Exception:
-        logging.exception("Exception raised when instantiating WMS.")
-        wms_get_cap_error = True
-    else:
-        # success - we were able to instantiate OWSLib WebMapService obj using the WMS url
-        logging.info('WMS WAS instantiated OK')
+    # Capture accessconstraints from top level WMS identification metadata. Access constraints might not be present
+    # in the CSW record itself but present in the WMS as point-of-access?
+    wms_top_level_accessconstraints = wms.identification.accessconstraints
 
-        # Capture accessconstraints from top level WMS identification metadata. Access constraints might not be present
-        # in the CSW record itself but present in the WMS as point-of-access?
-        wms_top_level_accessconstraints = wms.identification.accessconstraints
+    # iterate through named layers in WMS and look for a layer whose title matches CSW record title
+    # we cannot just look for CSW record title in wms.contents as wms.contents keys are WMS layer
+    # record names and match is on title
+    for i in wms.contents:
+        wms_layer_name = wms[i].name  # WMS Layer <Name> Machine-Readable
+        wms_layer_title = wms[i].title  # WMS Layer <Title> Human-Readable
 
-        # iterate through named layers in WMS and look for a layer whose title matches CSW record title
-        # we cannot just look for CSW record title in wms.contents as wms.contents keys are WMS layer
-        # record names and match is on title
-        for i in wms.contents:
-            wms_layer_name = wms[i].name  # WMS Layer <Name> Machine-Readable
-            wms_layer_title = wms[i].title  # WMS Layer <Title> Human-Readable
-
-            # if have an exact match we can shortcut having to go through rest of the layers
-            if wms_layer_title == csw_record_title:
-                matching_wms_layer_name = wms_layer_name
-                exact_match = True
-                break
-            else:
-                # otherwise we need to look through WMS layers and look for a layer whose title most closely matches the
-                # CSW record title. Closeness of match is determined using Levenshtein distance (LD of 0 means 2 strings
-                # are identical
-                levenshtein_dist = Lvn.distance(csw_record_title, wms_layer_title)
-                if levenshtein_dist < min_levenshtein_dist:
-                    min_levenshtein_dist = levenshtein_dist
-                    matching_wms_layer_name = wms_layer_name
-            layers_checked_count += 1
-
-        only_1_choice = False
-        if layers_checked_count == 1:
-            only_1_choice = True
-
-        if exact_match:
-            match_dist = 0
+        # if have an exact match we can shortcut having to go through rest of the layers
+        if wms_layer_title == csw_record_title:
+            matching_wms_layer_name = wms_layer_name
+            exact_match = True
+            break
         else:
-            match_dist = min_levenshtein_dist
+            # otherwise we need to look through WMS layers and look for a layer whose title most closely matches the
+            # CSW record title. Closeness of match is determined using Levenshtein distance (LD of 0 means 2 strings
+            # are identical
+            levenshtein_dist = Lvn.distance(csw_record_title, wms_layer_title)
+            if levenshtein_dist < min_levenshtein_dist:
+                min_levenshtein_dist = levenshtein_dist
+                matching_wms_layer_name = wms_layer_name
+        layers_checked_count += 1
 
-        if matching_wms_layer_name is not None:
-            if matching_wms_layer_name in list(wms.contents):
-                found_match = True
-                matching_wms_layer_title = wms.contents[matching_wms_layer_name].title
-                matching_wms_layer_wgs84_bbox = wms.contents[matching_wms_layer_name].boundingBoxWGS84
-                matching_wms_layer_projected_bbox = wms.contents[matching_wms_layer_name].boundingBox
+    only_1_choice = False
+    if layers_checked_count == 1:
+        only_1_choice = True
+
+    if exact_match:
+        match_dist = 0
+    else:
+        match_dist = min_levenshtein_dist
+
+    if matching_wms_layer_name is not None:
+        if matching_wms_layer_name in list(wms.contents):
+            found_match = True
+            matching_wms_layer_title = wms.contents[matching_wms_layer_name].title
+            matching_wms_layer_wgs84_bbox = wms.contents[matching_wms_layer_name].boundingBoxWGS84
+            matching_wms_layer_projected_bbox = wms.contents[matching_wms_layer_name].boundingBox
 
     matched_wms_layer = {
         'found_match': found_match,
@@ -428,75 +402,76 @@ def retrieve_and_loop_through_csw_recordset(params):
                                     wms_layers = None
                                     logging.info('URL ogc_url_type is: {} SO searching for Matching WMS Layer'.format(ogc_url_type))
                                     found_matching_wms_layer = False
-                                    # replaced call to (deprecated) search_wms_for_csw_record_title() with call to search_wms_for_layer_matching_csw_record_title()
-                                    matched_wms_layer = search_wms_for_layer_matching_csw_record_title(
-                                        wms_url=url,
-                                        csw_record_title=csw_rec_title,
-                                        wms_version='1.3.0',  # wms_version='1.1.1',
-                                        wms_timeout=30
-                                    )
-                                    if matched_wms_layer['found_match']:
-                                        found_matching_wms_layer = True
+                                    wms_get_cap_error = False
 
-                                    if found_matching_wms_layer:
-                                        wms_get_cap_error = None  # wms_get_cap_error also returned in matched_wms_layer dict
-                                        wms_get_map_error = None
-                                        made_get_map_req = None
-                                        image_status = None
-                                        out_image_fname = None
-
-                                        # test the matched WMS layer
-                                        # TODO is it better to use the existing OWSLib WMS object that we have when we
-                                        #  found the matching WMS layer rather than as we do here instantiate a new
-                                        #   OWSLib WMS object in order to issue a GetMap request to the WMS for that
-                                        #    layer?. If so we would need to modify test_wms_layer() to accept an OWSLib
-                                        #     wms object rather than a WMS URL
-                                        wms_get_cap_error, wms_get_map_error, made_get_map_req, image_status, out_image_fname = test_wms_layer(
-                                            url,
-                                            wms_layer_name=matched_wms_layer['matching_wms_layer_name'],
-                                            out_path=out_path,
-                                            request_wgs84_layer_extent=True,
-                                            request_projected_layer_extent=False,
-                                            request_custom_extent=False,
-                                            custom_extent_bbox=None,
-                                            wms_version='1.3.0',  #wms_version='1.1.1'
-                                            wms_timeout=30
-                                        )
-
-                                        wms_layer_for_record_title = matched_wms_layer['matching_wms_layer_title']
-                                        logging.info('Found matching WMS Layer for CSW record in WMS, matched WMS layer title is'.format(wms_layer_for_record_title))
-                                        wms_layer_for_record_name = matched_wms_layer['matching_wms_layer_name']
-                                        wms_top_level_accessconstraints = matched_wms_layer['wms_top_level_accessconstraints']
-                                        bbox_wgs84 = matched_wms_layer['matching_wms_layer_wgs84_bbox']
-                                        bbox_projected = matched_wms_layer['matching_wms_layer_projected_bbox']
-                                        match_dist = matched_wms_layer['match_dist']
-                                        only_1_choice = matched_wms_layer['only_1_choice']
-
-                                        out_records.append([
-                                            csw_url,
-                                            csw_rec_identifier,
-                                            csw_rec_publisher,
-                                            csw_rec_title,
-                                            csw_rec_subjects,
-                                            csw_rec_abstract,
-                                            csw_rec_modified,
-                                            url,
-                                            wms_url_domain,
-                                            wms_layer_for_record_title,
-                                            wms_layer_for_record_name,
-                                            wms_top_level_accessconstraints,
-                                            only_1_choice,
-                                            match_dist,
-                                            bbox_wgs84,
-                                            bbox_projected,
-                                            wms_get_cap_error,
-                                            wms_get_map_error,
-                                            made_get_map_req,
-                                            image_status,
-                                            out_image_fname
-                                        ])
+                                    # instantiate OWSLib WebMapService object
+                                    try:
+                                        wms = WebMapService(url, version='1.3.0', timeout=30)
+                                    # TODO improve caught exception specifity
+                                    except Exception:
+                                        logging.exception("Exception raised when instantiating WMS.")
+                                        wms_get_cap_error = True
                                     else:
-                                        logging.info('Found ZERO matching WMS Layers for CSW record in WMS {0}'.format(url))
+                                        logging.info('WMS WAS instantiated OK')
+                                        # search the WMS for a layer matching CSW record title
+                                        matched_wms_layer = search_wms_for_layer_matching_csw_record_title(
+                                            wms=wms,
+                                            csw_record_title=csw_rec_title
+                                        )
+                                        if matched_wms_layer['found_match']:
+                                            found_matching_wms_layer = True
+
+                                        if found_matching_wms_layer:
+                                            wms_get_map_error = None
+                                            made_get_map_req = None
+                                            image_status = None
+                                            out_image_fname = None
+
+                                            # test i.e. do GetMap request for the layers from the WMS
+                                            wms_get_map_error, made_get_map_req, image_status, out_image_fname = test_wms_layer(
+                                                wms=wms,
+                                                wms_layer_name=matched_wms_layer['matching_wms_layer_name'],
+                                                out_path=out_path,
+                                                request_wgs84_layer_extent=True,
+                                                request_projected_layer_extent=False,
+                                                request_custom_extent=False,
+                                                custom_extent_bbox=None
+                                            )
+
+                                            wms_layer_for_record_title = matched_wms_layer['matching_wms_layer_title']
+                                            logging.info('Found matching WMS Layer for CSW record in WMS, matched WMS layer title is'.format(wms_layer_for_record_title))
+                                            wms_layer_for_record_name = matched_wms_layer['matching_wms_layer_name']
+                                            wms_top_level_accessconstraints = matched_wms_layer['wms_top_level_accessconstraints']
+                                            bbox_wgs84 = matched_wms_layer['matching_wms_layer_wgs84_bbox']
+                                            bbox_projected = matched_wms_layer['matching_wms_layer_projected_bbox']
+                                            match_dist = matched_wms_layer['match_dist']
+                                            only_1_choice = matched_wms_layer['only_1_choice']
+
+                                            out_records.append([
+                                                csw_url,
+                                                csw_rec_identifier,
+                                                csw_rec_publisher,
+                                                csw_rec_title,
+                                                csw_rec_subjects,
+                                                csw_rec_abstract,
+                                                csw_rec_modified,
+                                                url,
+                                                wms_url_domain,
+                                                wms_layer_for_record_title,
+                                                wms_layer_for_record_name,
+                                                wms_top_level_accessconstraints,
+                                                only_1_choice,
+                                                match_dist,
+                                                bbox_wgs84,
+                                                bbox_projected,
+                                                wms_get_cap_error,
+                                                wms_get_map_error,
+                                                made_get_map_req,
+                                                image_status,
+                                                out_image_fname
+                                            ])
+                                        else:
+                                            logging.info('Found ZERO matching WMS Layers for CSW record in WMS {0}'.format(url))
                                 else:
                                     logging.info('URL ogc_url_type is NONE-WMS OGC SERVICE: {} SO SKIPPING searching for record title'.format(ogc_url_type))
                             else:
