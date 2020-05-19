@@ -347,6 +347,8 @@ def retrieve_and_loop_through_csw_recordset(params):
     resultset_size = params[2]
     ogc_srv_type = params[3]
     out_path = params[4]
+    restrict_wms_layers_to_match = params[5]
+    test_wms_get_map = params[6]
 
     try:
         csw = CatalogueServiceWeb(csw_url)
@@ -439,16 +441,17 @@ def retrieve_and_loop_through_csw_recordset(params):
                                             match_dist = matched_wms_layer['match_dist']
                                             only_1_choice = matched_wms_layer['only_1_choice']
 
-                                            #test i.e. do GetMap request for the layers from the WMS
-                                            wms_get_map_error, made_get_map_req, image_status, out_image_fname = test_wms_layer(
-                                                wms=wms,
-                                                wms_layer_name=matched_wms_layer['matching_wms_layer_name'],
-                                                out_path=out_path,
-                                                request_wgs84_layer_extent=True,
-                                                request_projected_layer_extent=False,
-                                                request_custom_extent=False,
-                                                custom_extent_bbox=None
-                                            )
+                                            if test_wms_get_map:
+                                                #test i.e. do GetMap request for the layers from the WMS
+                                                wms_get_map_error, made_get_map_req, image_status, out_image_fname = test_wms_layer(
+                                                    wms=wms,
+                                                    wms_layer_name=matched_wms_layer['matching_wms_layer_name'],
+                                                    out_path=out_path,
+                                                    request_wgs84_layer_extent=True,
+                                                    request_projected_layer_extent=False,
+                                                    request_custom_extent=False,
+                                                    custom_extent_bbox=None
+                                                )
 
                                             out_records.append([
                                                 csw_url,
@@ -483,7 +486,7 @@ def retrieve_and_loop_through_csw_recordset(params):
     return out_records
 
 
-def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type='WMS:GetCapabilties', restrict_wms_layers_to_match=True):
+def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type='WMS:GetCapabilties', restrict_wms_layers_to_match=True, test_wms_get_map=True):
     limit_count = limit_count
     try:
         csw = CatalogueServiceWeb(csw_url)
@@ -519,7 +522,7 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
             logging.info('CSW Records to retrieve: %s', str(num_records))
 
             # create job list
-            jobs = [[csw_url, start_pos, resultset_size, ogc_srv_type, out_path, restrict_wms_layers_to_match] for start_pos in range(0, num_records, resultset_size)]
+            jobs = [[csw_url, start_pos, resultset_size, ogc_srv_type, out_path, restrict_wms_layers_to_match, test_wms_get_map] for start_pos in range(0, num_records, resultset_size)]
 
             pool = ThreadPoolExecutor(max_workers=10)
 
@@ -594,6 +597,7 @@ def generate_report(out_path):
 @click.option('-log_level', default='debug', type=click.Choice(['debug', 'info']), help='Log Level')
 @click.option('-createReport', 'create_report', default='y', type=click.Choice(['y', 'n']), help='Generate an HTML report')
 @click.option('-geocoder_db_conn_str', type=str, help='(Geocoder) Pg connection string for db holding Natural Earth World Map Units polygons')
+@click.option('-test_wms_get_map', default='y', type=click.Choice(['y', 'n']), help='Issue GetMap req to WMS Layers & valiadate image')
 def wms_layer_finder(**params):
     """Searching CSW(s) for WMS layers. Using WMS Version 1.3.0. Using WGS84 BBox to test WMS returns map image."""
     csv_file = params['csv_file']
@@ -603,6 +607,7 @@ def wms_layer_finder(**params):
     log_level = params['log_level']
     create_report = params['create_report']
     geocoder_db_conn_str = params['geocoder_db_conn_str']
+    test_wms_get_map = params['test_wms_get_map']
     csw_list = []
 
     if log_level == 'debug':
@@ -613,6 +618,7 @@ def wms_layer_finder(**params):
         print('log_level: ', log_level)
         print('create_report: ', create_report)
         print('geocoder_db_conn_str: ', geocoder_db_conn_str)
+
 
     if csv_file is not None:
         with open(csv_file, 'r') as input_file:
@@ -653,6 +659,14 @@ def wms_layer_finder(**params):
         have_geocoder = True
         logging.info('Have Pg geocoder(Natural Earth)')
 
+    if test_wms_get_map == 'y':
+        test_wms_get_map = True
+    else:
+        test_wms_get_map = False
+
+    if log_level == 'debug':
+        print('test_wms_get_map:', test_wms_get_map)
+
     # go through each CSW in turn and search for records that have associated OGC endpoints
     for csw_url in csw_list:
         print('Searching CSW: ', csw_url)
@@ -661,7 +675,8 @@ def wms_layer_finder(**params):
             out_path=out_path,
             csw_url=csw_url,
             limit_count=search_limit,
-            ogc_srv_type='WMS:GetCapabilties'
+            ogc_srv_type='WMS:GetCapabilties',
+            test_wms_get_map=test_wms_get_map
         )
 
     if create_report == 'y':
