@@ -401,7 +401,9 @@ def retrieve_and_loop_through_csw_recordset(params):
                             if ogc_url_type is not None:
                                 if ogc_url_type == ogc_srv_type:
                                     wms_layers = None
-                                    logging.info('URL ogc_url_type is: {} SO searching for Matching WMS Layer'.format(ogc_url_type))
+                                    logging.info('URL ogc_url_type is: {0} SO searching WMS URL {1} for Matching WMS Layer'.format(
+                                        ogc_url_type, url
+                                    ))
                                     found_matching_wms_layer = False
                                     wms_get_cap_error = False
 
@@ -437,7 +439,7 @@ def retrieve_and_loop_through_csw_recordset(params):
                                             match_dist = matched_wms_layer['match_dist']
                                             only_1_choice = matched_wms_layer['only_1_choice']
 
-                                            # test i.e. do GetMap request for the layers from the WMS
+                                            #test i.e. do GetMap request for the layers from the WMS
                                             wms_get_map_error, made_get_map_req, image_status, out_image_fname = test_wms_layer(
                                                 wms=wms,
                                                 wms_layer_name=matched_wms_layer['matching_wms_layer_name'],
@@ -650,7 +652,6 @@ def wms_layer_finder(**params):
     if geocoder_db_conn_str is not None:
         have_geocoder = True
         logging.info('Have Pg geocoder(Natural Earth)')
-
 
     # go through each CSW in turn and search for records that have associated OGC endpoints
     for csw_url in csw_list:
