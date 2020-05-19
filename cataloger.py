@@ -182,7 +182,7 @@ def test_wms_layer(wms, wms_layer_name, out_path, request_wgs84_layer_extent=Tru
     out_image_fname = None
 
     if request_wgs84_layer_extent:
-        logging.info('Requested to test GetMap for Layer WGS84 BBox')
+        logging.info('Requested to test GetMap for Layer {0} WGS84 BBox'.format(wms_layer_name))
         if wms_layer_name in list(wms.contents):
             wms_layer_bbox = wms.contents[wms_layer_name].boundingBoxWGS84
             try:
@@ -360,6 +360,7 @@ def retrieve_and_loop_through_csw_recordset(params):
         except Exception:
             logging.exception("Exception raised when retrieving subsequent set of records from CSW.")
         else:
+            logging.info('Processing records for CSW {}, from startposition: {}'.format(csw_url, str(start_pos)))
             for rec in csw.records:
                 r = None
                 r = csw.records[rec]
@@ -427,6 +428,15 @@ def retrieve_and_loop_through_csw_recordset(params):
                                             image_status = None
                                             out_image_fname = None
 
+                                            wms_layer_for_record_title = matched_wms_layer['matching_wms_layer_title']
+                                            logging.info('Found matching WMS Layer for CSW record in WMS, matched WMS layer title is'.format(wms_layer_for_record_title))
+                                            wms_layer_for_record_name = matched_wms_layer['matching_wms_layer_name']
+                                            wms_top_level_accessconstraints = matched_wms_layer['wms_top_level_accessconstraints']
+                                            bbox_wgs84 = matched_wms_layer['matching_wms_layer_wgs84_bbox']
+                                            bbox_projected = matched_wms_layer['matching_wms_layer_projected_bbox']
+                                            match_dist = matched_wms_layer['match_dist']
+                                            only_1_choice = matched_wms_layer['only_1_choice']
+
                                             # test i.e. do GetMap request for the layers from the WMS
                                             wms_get_map_error, made_get_map_req, image_status, out_image_fname = test_wms_layer(
                                                 wms=wms,
@@ -437,15 +447,6 @@ def retrieve_and_loop_through_csw_recordset(params):
                                                 request_custom_extent=False,
                                                 custom_extent_bbox=None
                                             )
-
-                                            wms_layer_for_record_title = matched_wms_layer['matching_wms_layer_title']
-                                            logging.info('Found matching WMS Layer for CSW record in WMS, matched WMS layer title is'.format(wms_layer_for_record_title))
-                                            wms_layer_for_record_name = matched_wms_layer['matching_wms_layer_name']
-                                            wms_top_level_accessconstraints = matched_wms_layer['wms_top_level_accessconstraints']
-                                            bbox_wgs84 = matched_wms_layer['matching_wms_layer_wgs84_bbox']
-                                            bbox_projected = matched_wms_layer['matching_wms_layer_projected_bbox']
-                                            match_dist = matched_wms_layer['match_dist']
-                                            only_1_choice = matched_wms_layer['only_1_choice']
 
                                             out_records.append([
                                                 csw_url,
