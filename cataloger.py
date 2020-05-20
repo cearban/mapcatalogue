@@ -1,63 +1,104 @@
-import csv
 from concurrent.futures import ThreadPoolExecutor
-import os
+import csv
 import glob
+import logging
+import os
 import shutil
 import uuid
-import xml
-from jinja2 import Environment, FileSystemLoader, select_autoescape
-import Levenshtein as Lvn # https://rawgit.com/ztane/python-Levenshtein/master/docs/Levenshtein.html
-import owslib
-from owslib.csw import CatalogueServiceWeb
-from owslib.wms import WebMapService
-from pyproj import Transformer
-from PIL import Image
-import requests
-import logging
 import click
 from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from owslib.csw import CatalogueServiceWeb
+from owslib.wms import WebMapService
 from postgres import Postgres
+from PIL import Image
+import Levenshtein as Lvn # https://rawgit.com/ztane/python-Levenshtein/master/docs/Levenshtein.html
 
 
-def tidy(path, skip_files=None):
-    """
-    purge all items in a folder
+def check_wms_map_image(fn):
+    status = None
+    logging.info('Checking image: %s', fn)
 
-    :param path: path to a folder
-    :param skip_files:
-    :return: None
-    """
-
-    if skip_files is None:
-        for f in glob.glob(os.path.join(path, "*")):
-            try:
-                os.remove(f)
-            except OSError:
-                shutil.rmtree(f)
-    else:
-        for f in glob.glob(os.path.join(path, "*")):
-            if f not in skip_files:
+    if os.path.exists(fn):
+        if os.path.getsize(fn) > 0:
+            with Image.open(fn) as im:
                 try:
-                    os.remove(f)
-                except OSError:
-                    shutil.rmtree(f)
-
-
-def validate_bbox(src_bbox):
-    valid_bbox = None
-    if src_bbox[4] != '':
-        src_srs = int((src_bbox[4]).split(':')[1])
-        if src_srs == 27700:
-            valid_bbox = src_bbox
+                    im_colors_list = im.getcolors(im.size[0] * im.size[1])
+                # TODO improve caught exception specifity
+                except Exception:
+                    logging.exception("Exception raised when checking image.")
+                    status = "Invalid"
+                else:
+                    try:
+                        number_of_cols_in_img = len(im_colors_list)
+                    # TODO improve caught exception specifity
+                    except Exception:
+                        logging.exception("Exception raised when checking image.")
+                        status = "Invalid"
+                    else:
+                        if number_of_cols_in_img > 1:
+                            status = "seems to be populated"
+                        else:
+                            # other cause of this could be that data is not visible at this scale
+                            status = "seems to all be background / no layer features in extent?"
         else:
-            if src_srs in (3857, 4326):
-                src_x_min, src_y_min, src_x_max, src_y_max = src_bbox[0], src_bbox[1], src_bbox[2], src_bbox[3]
-                transformer = Transformer.from_crs(src_srs, 27700)
-                bng_xy_min = transformer.transform(src_x_min, src_y_min)
-                bng_xy_max = transformer.transform(src_x_max, src_y_max)
-                valid_bbox = (bng_xy_min[0], bng_xy_min[1], bng_xy_max[0], bng_xy_max[1], 'EPSG:27700')
+            status = "seems to be a nosize img"
+    else:
+        status = "Image does not exist"
 
-    return valid_bbox
+    logging.info('Image Status is: %s', status)
+    return status
+
+
+def generate_report(out_path):
+    context = []
+    csv_fname = os.path.join(out_path, 'wms_layers.csv')
+    if os.path.exists(csv_fname):
+        with open(csv_fname, 'r') as inpf:
+            c = 1
+            my_reader = csv.reader(inpf)
+            for r in my_reader:
+                if c > 1:
+                    context.append(r)
+                c += 1
+
+    env = Environment(
+        loader=FileSystemLoader('/home/james/PycharmProjects/mapcatalogue/templates'),
+        autoescape=select_autoescape(['html', 'xml'])
+    )
+    template = env.get_template('wms_validation_report_templ.html')
+
+    with open(os.path.join(out_path, 'wms_validation_report.html'), 'w') as outpf:
+        outpf.write(template.render(my_list=context))
+
+
+def get_ogc_type(url):
+    """
+    given an ogc url i.e. a GetCapabilities idenfity if this is a WMS; WFS etc and if it`s a
+    GetMap or GetCapabilties
+
+    :param url: an ogc url
+    :return: an ogc_type i.e. WMS:GetCapabilties
+    """
+    ogc_type = None
+
+    if 'wms' in url.lower():
+        if 'request=getcapabilities' in url.lower():
+            ogc_type = 'WMS:GetCapabilties'
+        if 'request=getmap' in url.lower():
+            ogc_type = 'WMS:GetMap'
+    elif 'wcs' in url.lower():
+        if 'request=describecoverage' in url.lower():
+            ogc_type = 'WCS:DescribeCoverage'
+        if 'request=getcoverage' in url.lower():
+            ogc_type = 'WCS:GetCoverage'
+    elif 'wfs' in url.lower():
+        if 'request=getcapabilities' in url.lower():
+            ogc_type = 'WFS:GetCapabilities'
+        if 'request=getfeature' in url.lower():
+            ogc_type = 'WFS:GetFeature'
+
+    return ogc_type
 
 
 def reverse_geocode_wgs84_boundingbox(pg_conn_str, wgs84_bbox):
@@ -103,124 +144,6 @@ def reverse_geocode_wgs84_boundingbox(pg_conn_str, wgs84_bbox):
         raise TypeError('wgs84_bbox must be a 4 item tuple')
 
     return geographies
-
-
-def check_wms_map_image(fn):
-    status = None
-    logging.info('Checking image: %s', fn)
-
-    if os.path.exists(fn):
-        if os.path.getsize(fn) > 0:
-            with Image.open(fn) as im:
-                try:
-                    im_colors_list = im.getcolors(im.size[0] * im.size[1])
-                # TODO improve caught exception specifity
-                except Exception:
-                    logging.exception("Exception raised when checking image.")
-                    status = "Invalid"
-                else:
-                    try:
-                        number_of_cols_in_img = len(im_colors_list)
-                    # TODO improve caught exception specifity
-                    except Exception:
-                        logging.exception("Exception raised when checking image.")
-                        status = "Invalid"
-                    else:
-                        if number_of_cols_in_img > 1:
-                            status = "seems to be populated"
-                        else:
-                            # other cause of this could be that data is not visible at this scale
-                            status = "seems to all be background / no layer features in extent?"
-        else:
-            status = "seems to be a nosize img"
-    else:
-        status = "Image does not exist"
-
-    logging.info('Image Status is: %s', status)
-    return status
-
-
-# TODO need to implement request_projected_layer_extent as alternative to issuing request for WGS84 map
-# TODO need to implement request_custom_extent to make request for defined extent rather than whole layer extent
-# TODO need to work out some way of working out a more refined bbox so we avoid
-#  making request for very large e.g. all of world/all of UK etc extents when defaulting to layer extent
-# TODO handle WMS Layer Style
-def test_wms_layer(wms, wms_layer_name, out_path, request_wgs84_layer_extent=True, request_projected_layer_extent=False, request_custom_extent=False, custom_extent_bbox=None):
-    """
-    Test a WMS layer by making a GetMap request for it and then running image processing validation on the retrieved image
-
-    Defaults to making a GetMap request that corresponds to the layer`s bbox in WGS84 since this can be guaranteed to be
-    available for all layers
-
-    returns following info regarding this testing
-
-    wms_get_cap_error - True/False - WMS GetCapabilties error i.e. OWSLib could not instantiate WMS obj using wms_url
-    made_get_map_req - True/False - Made GetMap request. Might be false if bbox problematic
-    wms_get_map_error - True/False - WMS GetMap error generated when making WMS GetMap request
-    image_status - string describing state of map image returned from the GetMap request and written to disk
-    out_image_fname - full path to the map image returned from the GetMap request and written to disk
-
-    :param wms: OWSLib WebMapService object
-    :param wms_layer_name: name of WMS layer to request
-    :param out_path: where to write image retrieved from WMS
-    :param request_wgs84_layer_extent: request map corresponding to entire layer wgs84 bbox, defaults to True
-    :param request_projected_layer_extent: request map corresponding to entire layer projected bbox, defaults to False
-    :param request_custom_extent: request map corresponding to a custom bbox, defaults to False
-    :param custom_extent_bbox: custom bbox
-    :return:
-    """
-    wms = wms
-    wms_layer_name = wms_layer_name
-    out_path = out_path
-    request_wgs84_layer_extent = request_wgs84_layer_extent
-    request_projected_layer_extent = request_projected_layer_extent
-    request_custom_extent = request_custom_extent
-    custom_extent_bbox = custom_extent_bbox
-    wms_get_map_error = False
-    made_get_map_req = False
-    image_status = None
-    out_image_fname = None
-
-    if request_wgs84_layer_extent:
-        logging.info('Requested to test GetMap for Layer {0} WGS84 BBox'.format(wms_layer_name))
-        if wms_layer_name in list(wms.contents):
-            wms_layer_bbox = wms.contents[wms_layer_name].boundingBoxWGS84
-            try:
-                img = wms.getmap(
-                    layers=[wms_layer_name],
-                    srs='EPSG:4326',
-                    bbox=wms_layer_bbox,
-                    size=(400, 400),
-                    format='image/png'
-                )
-            # TODO improve caught exception specifity
-            except Exception:
-                logging.exception("Exception raised when making WMS GetMap Request.")
-                wms_get_map_error = True
-            else:
-                made_get_map_req = True
-                logging.info('GetMap request made OK')
-                logging.info('Writing map to temp image')
-                out_image_fname = os.path.join(
-                    out_path,
-                    "".join([str(uuid.uuid1().int), "_wms_map.png"])
-                )
-                with open(out_image_fname, 'wb') as outpf:
-                    outpf.write(img.read())
-
-                if os.path.exists(out_image_fname):
-                    image_status = check_wms_map_image(out_image_fname)
-
-    if request_projected_layer_extent:
-        pass
-
-    if request_custom_extent:
-        if custom_extent_bbox is not None:
-            pass
-        else:
-            print('Custom map extent requested but no custom extent provided')
-
-    return wms_get_map_error, made_get_map_req, image_status, out_image_fname
 
 
 def search_wms_for_layer_matching_csw_record_title(wms, csw_record_title):
@@ -307,35 +230,6 @@ def search_wms_for_layer_matching_csw_record_title(wms, csw_record_title):
     }
 
     return matched_wms_layer
-
-
-def get_ogc_type(url):
-    """
-    given an ogc url i.e. a GetCapabilities idenfity if this is a WMS; WFS etc and if it`s a
-    GetMap or GetCapabilties
-
-    :param url: an ogc url
-    :return: an ogc_type i.e. WMS:GetCapabilties
-    """
-    ogc_type = None
-
-    if 'wms' in url.lower():
-        if 'request=getcapabilities' in url.lower():
-            ogc_type = 'WMS:GetCapabilties'
-        if 'request=getmap' in url.lower():
-            ogc_type = 'WMS:GetMap'
-    elif 'wcs' in url.lower():
-        if 'request=describecoverage' in url.lower():
-            ogc_type = 'WCS:DescribeCoverage'
-        if 'request=getcoverage' in url.lower():
-            ogc_type = 'WCS:GetCoverage'
-    elif 'wfs' in url.lower():
-        if 'request=getcapabilities' in url.lower():
-            ogc_type = 'WFS:GetCapabilities'
-        if 'request=getfeature' in url.lower():
-            ogc_type = 'WFS:GetFeature'
-
-    return ogc_type
 
 
 # TODO use reverse_geocode_wgs84_boundingbox() to geocode the CSW record / WMS layer extent
@@ -566,26 +460,111 @@ def search_csw_for_ogc_endpoints(out_path, csw_url, limit_count=0, ogc_srv_type=
                             my_writer.writerow(r)
 
 
-def generate_report(out_path):
-    context = []
-    csv_fname = os.path.join(out_path, 'wms_layers.csv')
-    if os.path.exists(csv_fname):
-        with open(csv_fname, 'r') as inpf:
-            c = 1
-            my_reader = csv.reader(inpf)
-            for r in my_reader:
-                if c > 1:
-                    context.append(r)
-                c += 1
+# TODO need to implement request_projected_layer_extent as alternative to issuing request for WGS84 map
+# TODO need to implement request_custom_extent to make request for defined extent rather than whole layer extent
+# TODO need to work out some way of working out a more refined bbox so we avoid
+#  making request for very large e.g. all of world/all of UK etc extents when defaulting to layer extent
+# TODO handle WMS Layer Style
+def test_wms_layer(wms, wms_layer_name, out_path, request_wgs84_layer_extent=True, request_projected_layer_extent=False, request_custom_extent=False, custom_extent_bbox=None):
+    """
+    Test a WMS layer by making a GetMap request for it and then running image processing validation on the retrieved image
 
-    env = Environment(
-        loader=FileSystemLoader('/home/james/PycharmProjects/mapcatalogue/templates'),
-        autoescape=select_autoescape(['html', 'xml'])
-    )
-    template = env.get_template('wms_validation_report_templ.html')
+    Defaults to making a GetMap request that corresponds to the layer`s bbox in WGS84 since this can be guaranteed to be
+    available for all layers
 
-    with open(os.path.join(out_path, 'wms_validation_report.html'), 'w') as outpf:
-        outpf.write(template.render(my_list=context))
+    returns following info regarding this testing
+
+    wms_get_cap_error - True/False - WMS GetCapabilties error i.e. OWSLib could not instantiate WMS obj using wms_url
+    made_get_map_req - True/False - Made GetMap request. Might be false if bbox problematic
+    wms_get_map_error - True/False - WMS GetMap error generated when making WMS GetMap request
+    image_status - string describing state of map image returned from the GetMap request and written to disk
+    out_image_fname - full path to the map image returned from the GetMap request and written to disk
+
+    :param wms: OWSLib WebMapService object
+    :param wms_layer_name: name of WMS layer to request
+    :param out_path: where to write image retrieved from WMS
+    :param request_wgs84_layer_extent: request map corresponding to entire layer wgs84 bbox, defaults to True
+    :param request_projected_layer_extent: request map corresponding to entire layer projected bbox, defaults to False
+    :param request_custom_extent: request map corresponding to a custom bbox, defaults to False
+    :param custom_extent_bbox: custom bbox
+    :return:
+    """
+    wms = wms
+    wms_layer_name = wms_layer_name
+    out_path = out_path
+    request_wgs84_layer_extent = request_wgs84_layer_extent
+    request_projected_layer_extent = request_projected_layer_extent
+    request_custom_extent = request_custom_extent
+    custom_extent_bbox = custom_extent_bbox
+    wms_get_map_error = False
+    made_get_map_req = False
+    image_status = None
+    out_image_fname = None
+
+    if request_wgs84_layer_extent:
+        logging.info('Requested to test GetMap for Layer {0} WGS84 BBox'.format(wms_layer_name))
+        if wms_layer_name in list(wms.contents):
+            wms_layer_bbox = wms.contents[wms_layer_name].boundingBoxWGS84
+            try:
+                img = wms.getmap(
+                    layers=[wms_layer_name],
+                    srs='EPSG:4326',
+                    bbox=wms_layer_bbox,
+                    size=(400, 400),
+                    format='image/png'
+                )
+            # TODO improve caught exception specifity
+            except Exception:
+                logging.exception("Exception raised when making WMS GetMap Request.")
+                wms_get_map_error = True
+            else:
+                made_get_map_req = True
+                logging.info('GetMap request made OK')
+                logging.info('Writing map to temp image')
+                out_image_fname = os.path.join(
+                    out_path,
+                    "".join([str(uuid.uuid1().int), "_wms_map.png"])
+                )
+                with open(out_image_fname, 'wb') as outpf:
+                    outpf.write(img.read())
+
+                if os.path.exists(out_image_fname):
+                    image_status = check_wms_map_image(out_image_fname)
+
+    if request_projected_layer_extent:
+        pass
+
+    if request_custom_extent:
+        if custom_extent_bbox is not None:
+            pass
+        else:
+            print('Custom map extent requested but no custom extent provided')
+
+    return wms_get_map_error, made_get_map_req, image_status, out_image_fname
+
+
+def tidy(path, skip_files=None):
+    """
+    purge all items in a folder
+
+    :param path: path to a folder
+    :param skip_files:
+    :return: None
+    """
+
+    if skip_files is None:
+        for f in glob.glob(os.path.join(path, "*")):
+            try:
+                os.remove(f)
+            except OSError:
+                shutil.rmtree(f)
+    else:
+        for f in glob.glob(os.path.join(path, "*")):
+            if f not in skip_files:
+                try:
+                    os.remove(f)
+                except OSError:
+                    shutil.rmtree(f)
 
 
 @click.command()
@@ -619,7 +598,6 @@ def wms_layer_finder(**params):
         print('create_report: ', create_report)
         print('geocoder_db_conn_str: ', geocoder_db_conn_str)
 
-
     if csv_file is not None:
         with open(csv_file, 'r') as input_file:
             my_reader = csv.DictReader(input_file)
@@ -635,7 +613,7 @@ def wms_layer_finder(**params):
     else:
         print('Limiting search to {} records in each CSW'.format(str(search_limit)))
 
-    #first purge all files currently in the out_path folder so we start from afresh
+    # first purge all files currently in the out_path folder so we start from afresh
     tidy(out_path)
 
     # setup logging
