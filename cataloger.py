@@ -287,15 +287,16 @@ def retrieve_and_loop_through_csw_recordset(params):
                         # TODO what do we do if there is more than 1 WMS included in CSW references list?
                         for ref in csw_rec_references:
                             url = ref['url']
-                            # extract domain from WMS url
-                            wms_url_domain = url.replace('https://', '').replace('http://', '').split('/')[0]
-
+                            wms_url_domain = None
                             ogc_url_type = None
                             logging.info('Found URL {} in record references'.format(url))
                             if url is not None:
                                 ogc_url_type = get_ogc_type(url)
+
                             if ogc_url_type is not None:
                                 if ogc_url_type == ogc_srv_type:
+                                    if url.startswith('http'):
+                                        wms_url_domain = url.replace('https://', '').replace('http://', '').split('/')[0]
                                     wms_layers = None
                                     logging.info('URL ogc_url_type is: {0} SO searching WMS URL {1} for Matching WMS Layer'.format(
                                         ogc_url_type, url
