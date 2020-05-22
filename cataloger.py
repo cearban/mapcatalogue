@@ -63,7 +63,7 @@ def generate_report(out_path):
                 c += 1
 
     env = Environment(
-        loader=FileSystemLoader('/home/james/PycharmProjects/mapcatalogue/templates'),
+        loader=FileSystemLoader('templates'),
         autoescape=select_autoescape(['html', 'xml'])
     )
     template = env.get_template('wms_validation_report_templ.html')
